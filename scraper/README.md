@@ -37,9 +37,21 @@ OPENAI_MODEL=gpt-4o-mini
 
 ## Usage
 
+### CLI
+
 ```bash
 python scrape_spa.py "https://example-spa.com"
 ```
+
+### Web UI
+
+Start the local frontend:
+
+```bash
+python app.py
+```
+
+Open [http://127.0.0.1:5000](http://127.0.0.1:5000), paste a URL, scrape, edit the fields, then click **Download JSON**.
 
 ## Example output
 

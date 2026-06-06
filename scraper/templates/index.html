@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrivateSpa Scraper</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>PrivateSpa Scraper</h1>
+      <p>Paste a spa website URL, scrape it, edit the result, then download JSON.</p>
+    </header>
+
+    <form id="scrape-form" class="url-form">
+      <input
+        type="url"
+        id="url-input"
+        placeholder="https://example-spa.com"
+        required
+        autocomplete="url"
+      >
+      <button type="submit" id="scrape-btn">Scrape</button>
+    </form>
+
+    <div id="status" class="status hidden"></div>
+
+    <section id="editor" class="editor hidden">
+      <div class="editor-header">
+        <h2>Edit scraped data</h2>
+        <button type="button" id="download-btn" class="download-btn">Download JSON</button>
+      </div>
+
+      <div class="meta">
+        <span id="meta-playwright"></span>
+        <span id="meta-source"></span>
+      </div>
+
+      <div class="field">
+        <label for="name">Name</label>
+        <input type="text" id="name">
+      </div>
+
+      <div class="field">
+        <label for="description">Description</label>
+        <textarea id="description" rows="4"></textarea>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="location">Location</label>
+          <input type="text" id="location">
+        </div>
+        <div class="field">
+          <label for="canton">Canton</label>
+          <input type="text" id="canton">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="website">Website</label>
+        <input type="url" id="website">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="latitude">Latitude</label>
+          <input type="text" id="latitude" placeholder="47.3769">
+        </div>
+        <div class="field">
+          <label for="longitude">Longitude</label>
+          <input type="text" id="longitude" placeholder="8.5417">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Amenities <span class="hint">(one per line)</span></label>
+        <textarea id="amenities" rows="6"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Images <span class="hint">(one URL per line)</span></label>
+        <textarea id="images" rows="6"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Raw text preview <span class="hint">(read-only)</span></label>
+        <textarea id="raw-preview" rows="4" readonly></textarea>
+      </div>
+
+      <div id="image-previews" class="image-previews"></div>
+    </section>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

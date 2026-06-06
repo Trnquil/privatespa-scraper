@@ -236,32 +236,22 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
     }
 
 
-def main() -> None:
-    if len(sys.argv) != 2:
-        print("Usage: python scrape_spa.py <url>", file=sys.stderr)
-        sys.exit(1)
+def scrape_url(url: str) -> dict:
+    """Scrape a spa URL and return structured result with metadata."""
+    url = url.strip()
+    validate_url(url)
 
-    url = sys.argv[1].strip()
     used_playwright = False
-
-    try:
-        validate_url(url)
-    except ValueError as e:
-        print(json.dumps({"error": str(e)}, indent=2))
-        sys.exit(1)
-
     html = None
+
     try:
         html = fetch_with_httpx(url)
-    except httpx.TimeoutException:
-        print(json.dumps({"error": "Request timed out while fetching the page"}, indent=2))
-        sys.exit(1)
+    except httpx.TimeoutException as e:
+        raise TimeoutError("Request timed out while fetching the page") from e
     except httpx.HTTPStatusError as e:
-        print(json.dumps({"error": f"HTTP error {e.response.status_code}"}, indent=2))
-        sys.exit(1)
+        raise RuntimeError(f"HTTP error {e.response.status_code}") from e
     except httpx.RequestError as e:
-        print(json.dumps({"error": f"Failed to fetch page: {e}"}, indent=2))
-        sys.exit(1)
+        raise RuntimeError(f"Failed to fetch page: {e}") from e
 
     soup = parse_html(html) if html else None
     image_urls = extract_image_urls(soup, url) if soup else []
@@ -275,33 +265,39 @@ def main() -> None:
             image_urls = extract_image_urls(soup, url)
             text = extract_visible_text(soup)
         except Exception as e:
-            print(json.dumps({"error": f"Playwright fetch failed: {e}"}, indent=2))
-            sys.exit(1)
+            raise RuntimeError(f"Playwright fetch failed: {e}") from e
 
     if len(text) < MIN_TEXT_LENGTH:
-        print(
-            json.dumps(
-                {"error": "Extracted text is too short even after Playwright fallback"},
-                indent=2,
-            )
-        )
-        sys.exit(1)
+        raise RuntimeError("Extracted text is too short even after Playwright fallback")
 
-    try:
-        spa_info = extract_spa_info_with_openai(text, url, image_urls)
-    except EnvironmentError as e:
-        print(json.dumps({"error": str(e)}, indent=2))
-        sys.exit(1)
-    except Exception as e:
-        print(json.dumps({"error": f"OpenAI API failure: {e}"}, indent=2))
-        sys.exit(1)
+    spa_info = extract_spa_info_with_openai(text, url, image_urls)
 
-    output = {
+    return {
         **spa_info,
         "source_url": url,
         "used_playwright": used_playwright,
         "raw_text_preview": text[:RAW_PREVIEW_LENGTH],
     }
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        print("Usage: python scrape_spa.py <url>", file=sys.stderr)
+        sys.exit(1)
+
+    url = sys.argv[1].strip()
+
+    try:
+        output = scrape_url(url)
+    except ValueError as e:
+        print(json.dumps({"error": str(e)}, indent=2))
+        sys.exit(1)
+    except EnvironmentError as e:
+        print(json.dumps({"error": str(e)}, indent=2))
+        sys.exit(1)
+    except Exception as e:
+        print(json.dumps({"error": str(e)}, indent=2))
+        sys.exit(1)
 
     print(json.dumps(output, indent=2, ensure_ascii=False))
 
