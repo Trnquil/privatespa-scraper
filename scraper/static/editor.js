@@ -135,34 +135,23 @@ function removeDropZones() {
   imageListEl.classList.remove("is-sorting");
 }
 
-function insertDraggedCardAt(dropIndex) {
+function insertDraggedCardAt(targetPosition) {
   if (!draggedImageCard) return;
 
   const cards = getImageCards();
   const fromIndex = cards.indexOf(draggedImageCard);
   if (fromIndex === -1) return;
 
-  // dropIndex = insert before card at this index, or append when equal to length
-  if (dropIndex === fromIndex || dropIndex === fromIndex + 1) {
-    return;
-  }
+  const toPosition = Math.max(0, Math.min(targetPosition, cards.length - 1));
+  if (fromIndex === toPosition) return;
 
-  if (dropIndex > fromIndex && dropIndex < cards.length) {
-    return;
-  }
+  const order = [...cards];
+  order.splice(fromIndex, 1);
+  order.splice(toPosition, 0, draggedImageCard);
 
-  const without = cards.filter((card) => card !== draggedImageCard);
-  let insertBeforeIndex = dropIndex;
-  if (fromIndex < dropIndex) {
-    insertBeforeIndex = dropIndex - 1;
+  for (const card of order) {
+    imageListEl.appendChild(card);
   }
-
-  if (insertBeforeIndex >= without.length) {
-    imageListEl.appendChild(draggedImageCard);
-    return;
-  }
-
-  imageListEl.insertBefore(draggedImageCard, without[insertBeforeIndex]);
 }
 
 function buildDropZones() {
@@ -172,7 +161,7 @@ function buildDropZones() {
   imageListEl.classList.add("is-sorting");
   const cards = getImageCards();
 
-  for (let index = 1; index < cards.length; index += 1) {
+  for (let index = 0; index < cards.length; index += 1) {
     const zone = document.createElement("div");
     zone.className = "image-drop-zone";
     zone.dataset.index = String(index);
