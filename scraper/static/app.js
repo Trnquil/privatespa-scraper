@@ -7,6 +7,13 @@ const downloadBtn = document.getElementById("download-btn");
 const imageListEl = document.getElementById("image-list");
 const newImageUrlInput = document.getElementById("new-image-url");
 const addImageBtn = document.getElementById("add-image-btn");
+const lightboxEl = document.getElementById("lightbox");
+const lightboxImg = document.getElementById("lightbox-img");
+const lightboxCloseBtn = document.getElementById("lightbox-close");
+const lightboxPrevBtn = document.getElementById("lightbox-prev");
+const lightboxNextBtn = document.getElementById("lightbox-next");
+
+let lightboxIndex = 0;
 
 const fields = {
   name: document.getElementById("name"),
@@ -54,6 +61,41 @@ function getImageUrls() {
     .filter(Boolean);
 }
 
+function openLightboxAtIndex(index) {
+  const urls = getImageUrls();
+  if (!urls.length) return;
+
+  lightboxIndex = Math.max(0, Math.min(index, urls.length - 1));
+  lightboxImg.src = urls[lightboxIndex];
+  lightboxEl.classList.remove("hidden");
+  lightboxEl.setAttribute("aria-hidden", "false");
+  document.body.classList.add("lightbox-open");
+  updateLightboxNav();
+}
+
+function updateLightboxNav() {
+  const urls = getImageUrls();
+  const hasMultiple = urls.length > 1;
+  lightboxPrevBtn.classList.toggle("hidden", !hasMultiple);
+  lightboxNextBtn.classList.toggle("hidden", !hasMultiple);
+  lightboxPrevBtn.disabled = lightboxIndex <= 0;
+  lightboxNextBtn.disabled = lightboxIndex >= urls.length - 1;
+}
+
+function showLightboxRelative(step) {
+  const urls = getImageUrls();
+  if (!urls.length) return;
+  openLightboxAtIndex(lightboxIndex + step);
+}
+
+function closeLightbox() {
+  lightboxEl.classList.add("hidden");
+  lightboxEl.setAttribute("aria-hidden", "true");
+  lightboxImg.removeAttribute("src");
+  lightboxIndex = 0;
+  document.body.classList.remove("lightbox-open");
+}
+
 function createImageCard(url) {
   const card = document.createElement("div");
   card.className = "image-card";
@@ -68,13 +110,18 @@ function createImageCard(url) {
   img.onerror = () => {
     img.classList.add("broken");
   };
+  img.addEventListener("click", () => {
+    const cards = [...imageListEl.querySelectorAll(".image-card")];
+    openLightboxAtIndex(cards.indexOf(card));
+  });
 
   const removeBtn = document.createElement("button");
   removeBtn.type = "button";
   removeBtn.className = "image-remove-btn";
   removeBtn.setAttribute("aria-label", "Remove image");
   removeBtn.textContent = "×";
-  removeBtn.addEventListener("click", () => {
+  removeBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
     card.remove();
   });
 
@@ -227,4 +274,30 @@ newImageUrlInput.addEventListener("keydown", (event) => {
 urlInput.addEventListener("blur", () => {
   const normalized = normalizeUrl(urlInput.value);
   if (normalized) urlInput.value = normalized;
+});
+
+lightboxCloseBtn.addEventListener("click", closeLightbox);
+lightboxPrevBtn.addEventListener("click", (event) => {
+  event.stopPropagation();
+  showLightboxRelative(-1);
+});
+lightboxNextBtn.addEventListener("click", (event) => {
+  event.stopPropagation();
+  showLightboxRelative(1);
+});
+
+lightboxEl.addEventListener("click", (event) => {
+  if (event.target === lightboxEl) closeLightbox();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (lightboxEl.classList.contains("hidden")) return;
+
+  if (event.key === "Escape") {
+    closeLightbox();
+  } else if (event.key === "ArrowLeft") {
+    showLightboxRelative(-1);
+  } else if (event.key === "ArrowRight") {
+    showLightboxRelative(1);
+  }
 });
