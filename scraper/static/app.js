@@ -12,6 +12,7 @@ const lightboxImg = document.getElementById("lightbox-img");
 const lightboxCloseBtn = document.getElementById("lightbox-close");
 const lightboxPrevBtn = document.getElementById("lightbox-prev");
 const lightboxNextBtn = document.getElementById("lightbox-next");
+const lightboxDeleteBtn = document.getElementById("lightbox-delete");
 
 let lightboxIndex = 0;
 
@@ -55,18 +56,43 @@ function arrayToLines(items) {
   return (items || []).join("\n");
 }
 
+function getImageCards() {
+  return [...imageListEl.querySelectorAll(".image-card")];
+}
+
+function getImageUrlFromCard(card) {
+  return card.querySelector(".image-url-input").value.trim();
+}
+
 function getImageUrls() {
-  return [...imageListEl.querySelectorAll(".image-url-input")]
-    .map((input) => input.value.trim())
-    .filter(Boolean);
+  return getImageCards().map(getImageUrlFromCard).filter(Boolean);
+}
+
+function removeImageAtIndex(index) {
+  const cards = getImageCards();
+  const card = cards[index];
+  if (!card) return;
+
+  card.remove();
+
+  if (!getImageCards().length) {
+    closeLightbox();
+    return;
+  }
+
+  openLightboxAtIndex(Math.min(index, getImageCards().length - 1));
+}
+
+function deleteCurrentLightboxImage() {
+  removeImageAtIndex(lightboxIndex);
 }
 
 function openLightboxAtIndex(index) {
-  const urls = getImageUrls();
-  if (!urls.length) return;
+  const cards = getImageCards();
+  if (!cards.length) return;
 
-  lightboxIndex = Math.max(0, Math.min(index, urls.length - 1));
-  lightboxImg.src = urls[lightboxIndex];
+  lightboxIndex = Math.max(0, Math.min(index, cards.length - 1));
+  lightboxImg.src = getImageUrlFromCard(cards[lightboxIndex]);
   lightboxEl.classList.remove("hidden");
   lightboxEl.setAttribute("aria-hidden", "false");
   document.body.classList.add("lightbox-open");
@@ -74,17 +100,16 @@ function openLightboxAtIndex(index) {
 }
 
 function updateLightboxNav() {
-  const urls = getImageUrls();
-  const hasMultiple = urls.length > 1;
+  const cards = getImageCards();
+  const hasMultiple = cards.length > 1;
   lightboxPrevBtn.classList.toggle("hidden", !hasMultiple);
   lightboxNextBtn.classList.toggle("hidden", !hasMultiple);
   lightboxPrevBtn.disabled = lightboxIndex <= 0;
-  lightboxNextBtn.disabled = lightboxIndex >= urls.length - 1;
+  lightboxNextBtn.disabled = lightboxIndex >= cards.length - 1;
 }
 
 function showLightboxRelative(step) {
-  const urls = getImageUrls();
-  if (!urls.length) return;
+  if (!getImageCards().length) return;
   openLightboxAtIndex(lightboxIndex + step);
 }
 
@@ -111,8 +136,7 @@ function createImageCard(url) {
     img.classList.add("broken");
   };
   img.addEventListener("click", () => {
-    const cards = [...imageListEl.querySelectorAll(".image-card")];
-    openLightboxAtIndex(cards.indexOf(card));
+    openLightboxAtIndex(getImageCards().indexOf(card));
   });
 
   const removeBtn = document.createElement("button");
@@ -169,9 +193,8 @@ function populateEditor(result) {
   fields.amenities.value = arrayToLines(data.amenities);
   fields.rawPreview.value = result.raw_text_preview || "";
 
-  document.getElementById("meta-playwright").textContent = result.used_playwright
-    ? "Fetched with Playwright"
-    : "Fetched with httpx";
+  document.getElementById("meta-playwright").textContent =
+    result.used_playwright ? "Fetched with Playwright" : "Fetched with httpx";
   document.getElementById("meta-source").textContent = result.source_url || "";
 
   renderImages(data.images);
@@ -284,6 +307,10 @@ lightboxPrevBtn.addEventListener("click", (event) => {
 lightboxNextBtn.addEventListener("click", (event) => {
   event.stopPropagation();
   showLightboxRelative(1);
+});
+lightboxDeleteBtn.addEventListener("click", (event) => {
+  event.stopPropagation();
+  deleteCurrentLightboxImage();
 });
 
 lightboxEl.addEventListener("click", (event) => {
