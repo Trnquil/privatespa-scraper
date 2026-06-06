@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Local MVP scraper: fetch a spa website and extract structured spa data via OpenAI."""
 
+from __future__ import annotations
+
 import ipaddress
 import json
 import re
@@ -125,6 +127,14 @@ def extract_visible_text(soup: BeautifulSoup) -> str:
     meta_desc = soup.find("meta", attrs={"name": re.compile(r"^description$", re.I)})
     if meta_desc and meta_desc.get("content"):
         parts.append(meta_desc["content"].strip())
+
+    for meta in soup.find_all("meta"):
+        name = (meta.get("name") or meta.get("property") or "").lower()
+        content = meta.get("content")
+        if not content:
+            continue
+        if any(k in name for k in ("geo", "latitude", "longitude", "icbm")):
+            parts.append(f"{meta.get('name') or meta.get('property')}: {content.strip()}")
 
     for tag in soup.find_all(["h1", "h2", "h3", "p", "li"]):
         text = tag.get_text(separator=" ", strip=True)
