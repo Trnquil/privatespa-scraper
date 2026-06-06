@@ -22,6 +22,7 @@ const editorConfig = JSON.parse(
 let lightboxIndex = 0;
 let currentSpaId = editorConfig.spaId || null;
 let editorMode = editorConfig.mode || "firestore";
+let draggedImageCard = null;
 
 const fields = {
   name: document.getElementById("name"),
@@ -121,9 +122,141 @@ function closeLightbox() {
   document.body.classList.remove("lightbox-open");
 }
 
+function clearImageDragOverStates() {
+  for (const zone of imageListEl.querySelectorAll(".image-drop-zone")) {
+    zone.classList.remove("active");
+  }
+}
+
+function removeDropZones() {
+  for (const zone of imageListEl.querySelectorAll(".image-drop-zone")) {
+    zone.remove();
+  }
+  imageListEl.classList.remove("is-sorting");
+}
+
+function insertDraggedCardAt(dropIndex) {
+  if (!draggedImageCard) return;
+
+  const cards = getImageCards();
+  const fromIndex = cards.indexOf(draggedImageCard);
+  if (fromIndex === -1) return;
+
+  // dropIndex = insert before card at this index, or append when equal to length
+  if (dropIndex === fromIndex || dropIndex === fromIndex + 1) {
+    return;
+  }
+
+  if (dropIndex > fromIndex && dropIndex < cards.length) {
+    return;
+  }
+
+  const without = cards.filter((card) => card !== draggedImageCard);
+  let insertBeforeIndex = dropIndex;
+  if (fromIndex < dropIndex) {
+    insertBeforeIndex = dropIndex - 1;
+  }
+
+  if (insertBeforeIndex >= without.length) {
+    imageListEl.appendChild(draggedImageCard);
+    return;
+  }
+
+  imageListEl.insertBefore(draggedImageCard, without[insertBeforeIndex]);
+}
+
+function buildDropZones() {
+  removeDropZones();
+  if (!draggedImageCard) return;
+
+  imageListEl.classList.add("is-sorting");
+  const cards = getImageCards();
+
+  for (let index = 1; index < cards.length; index += 1) {
+    const zone = document.createElement("div");
+    zone.className = "image-drop-zone";
+    zone.dataset.index = String(index);
+    zone.setAttribute("aria-hidden", "true");
+    imageListEl.insertBefore(zone, cards[index]);
+  }
+
+  const endZone = document.createElement("div");
+  endZone.className = "image-drop-zone";
+  endZone.dataset.index = String(cards.length);
+  endZone.setAttribute("aria-hidden", "true");
+  imageListEl.appendChild(endZone);
+}
+
+function syncLightboxIndexAfterReorder() {
+  if (lightboxEl.classList.contains("hidden") || !lightboxImg.src) return;
+  const cards = getImageCards();
+  const currentUrl = lightboxImg.src;
+  const nextIndex = cards.findIndex(
+    (card) => getImageUrlFromCard(card) === currentUrl
+  );
+  if (nextIndex >= 0) {
+    lightboxIndex = nextIndex;
+    updateLightboxNav();
+  }
+}
+
+function setupImageDragAndDrop() {
+  imageListEl.addEventListener("dragover", (event) => {
+    if (!draggedImageCard) return;
+
+    const zone = event.target.closest(".image-drop-zone");
+    if (!zone) return;
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    clearImageDragOverStates();
+    zone.classList.add("active");
+  });
+
+  imageListEl.addEventListener("dragleave", (event) => {
+    const zone = event.target.closest(".image-drop-zone");
+    if (!zone) return;
+    if (event.relatedTarget && zone.contains(event.relatedTarget)) return;
+    zone.classList.remove("active");
+  });
+
+  imageListEl.addEventListener("drop", (event) => {
+    const zone = event.target.closest(".image-drop-zone");
+    if (!zone || !draggedImageCard) return;
+
+    event.preventDefault();
+    insertDraggedCardAt(Number(zone.dataset.index));
+    clearImageDragOverStates();
+    removeDropZones();
+    syncLightboxIndexAfterReorder();
+    draggedImageCard = null;
+  });
+}
+
 function createImageCard(url) {
   const card = document.createElement("div");
   card.className = "image-card";
+
+  const dragHandle = document.createElement("div");
+  dragHandle.className = "image-drag-handle";
+  dragHandle.setAttribute("aria-label", "Drag to reorder");
+  dragHandle.title = "Drag to reorder";
+  dragHandle.draggable = true;
+  dragHandle.textContent = "⋮⋮";
+  dragHandle.addEventListener("dragstart", (event) => {
+    draggedImageCard = card;
+    card.classList.add("dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", getImageUrlFromCard(card));
+    buildDropZones();
+  });
+  dragHandle.addEventListener("dragend", () => {
+    card.classList.remove("dragging");
+    clearImageDragOverStates();
+    removeDropZones();
+    syncLightboxIndexAfterReorder();
+    draggedImageCard = null;
+  });
 
   const previewWrap = document.createElement("div");
   previewWrap.className = "image-card-preview";
@@ -162,6 +295,7 @@ function createImageCard(url) {
     img.classList.remove("broken");
   });
 
+  card.appendChild(dragHandle);
   card.appendChild(previewWrap);
   card.appendChild(urlInputEl);
   return card;
@@ -380,3 +514,4 @@ document.addEventListener("keydown", (event) => {
 });
 
 initEditor();
+setupImageDragAndDrop();
