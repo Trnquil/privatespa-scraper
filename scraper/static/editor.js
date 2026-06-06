@@ -2,6 +2,8 @@ const statusEl = document.getElementById("status");
 const saveSpaBtn = document.getElementById("save-spa-btn");
 const editorTitleEl = document.getElementById("editor-title");
 const metaModeEl = document.getElementById("meta-mode");
+const metaPlaywrightEl = document.getElementById("meta-playwright");
+const metaSourceEl = document.getElementById("meta-source");
 const rawPreviewFieldEl = document.getElementById("raw-preview-field");
 const imageListEl = document.getElementById("image-list");
 const newImageUrlInput = document.getElementById("new-image-url");
@@ -178,6 +180,12 @@ function addImage(url) {
   imageListEl.appendChild(createImageCard(normalized));
 }
 
+function setMetaTag(el, text) {
+  const value = (text || "").trim();
+  el.textContent = value;
+  el.classList.toggle("hidden", !value);
+}
+
 function populateEditor(result, options = {}) {
   const data = result.data || {};
   editorMode = options.mode || editorMode;
@@ -195,17 +203,18 @@ function populateEditor(result, options = {}) {
 
   if (editorMode === "firestore") {
     editorTitleEl.textContent = data.name || "Edit spa";
-    metaModeEl.textContent = `Firebase ID: ${currentSpaId}`;
-    document.getElementById("meta-playwright").textContent = "";
-    document.getElementById("meta-source").textContent = data.website || "";
+    setMetaTag(metaModeEl, `Firebase ID: ${currentSpaId}`);
+    setMetaTag(metaPlaywrightEl, "");
+    setMetaTag(metaSourceEl, data.website || "");
     rawPreviewFieldEl.classList.add("hidden");
   } else {
     editorTitleEl.textContent = data.name || "New scraped spa";
-    metaModeEl.textContent = "New scrape";
-    document.getElementById("meta-playwright").textContent = result.used_playwright
-      ? "Fetched with Playwright"
-      : "Fetched with httpx";
-    document.getElementById("meta-source").textContent = result.source_url || "";
+    setMetaTag(metaModeEl, "New scrape");
+    setMetaTag(
+      metaPlaywrightEl,
+      result.used_playwright ? "Fetched with Playwright" : "Fetched with httpx"
+    );
+    setMetaTag(metaSourceEl, result.source_url || "");
     rawPreviewFieldEl.classList.remove("hidden");
   }
 
