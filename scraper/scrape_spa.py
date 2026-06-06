@@ -12,6 +12,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from geocoding import geocode_location
 from openai import OpenAI
 import os
 
@@ -125,6 +126,63 @@ def extract_image_urls(soup: BeautifulSoup, base_url: str) -> list[str]:
     return urls
 
 
+def _collect_address_strings(obj) -> list[str]:
+    """Recursively collect address strings from JSON-LD objects."""
+    found: list[str] = []
+
+    if isinstance(obj, dict):
+        address = obj.get("address")
+        if isinstance(address, str) and address.strip():
+            found.append(address.strip())
+        elif isinstance(address, dict):
+            parts = [
+                address.get("streetAddress"),
+                address.get("postalCode"),
+                address.get("addressLocality"),
+                address.get("addressRegion"),
+                address.get("addressCountry"),
+            ]
+            line = ", ".join(str(part).strip() for part in parts if part)
+            if line:
+                found.append(line)
+
+        for value in obj.values():
+            found.extend(_collect_address_strings(value))
+    elif isinstance(obj, list):
+        for item in obj:
+            found.extend(_collect_address_strings(item))
+
+    return found
+
+
+def extract_address_hints(soup: BeautifulSoup) -> list[str]:
+    """Extract postal addresses from HTML before noisy sections are removed."""
+    hints: list[str] = []
+    seen: set[str] = set()
+
+    def add_hint(text: str) -> None:
+        normalized = " ".join(text.split())
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            hints.append(normalized)
+
+    for tag in soup.find_all("address"):
+        add_hint(tag.get_text(separator=" ", strip=True))
+
+    for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = script.string or script.get_text()
+        if not raw:
+            continue
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        for address in _collect_address_strings(payload):
+            add_hint(address)
+
+    return hints
+
+
 def extract_visible_text(soup: BeautifulSoup) -> str:
     """Extract useful visible text from a parsed HTML document."""
     for tag in soup.find_all(["script", "style", "nav", "footer", "header", "noscript", "svg", "form"]):
@@ -195,7 +253,11 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
         "description: 1-3 polished sentences in the same language as the website text, "
         "factual and based ONLY on the provided text. "
         "amenities: array of amenity or feature strings mentioned on the page (empty array if none). "
-        "location: human-readable location string (e.g. 'Hirschen Ramsen, Ramsen, Schweiz'), or null. "
+        "location: the most precise physical address or location available on the page. "
+        "Prefer a full street address with postal code, city, and country when present "
+        "(e.g. 'Hertensteinstrasse 42, 6353 Weggis, Schweiz'). "
+        "If no street address exists, use the most specific place name available. "
+        "Do not invent address parts. null if unclear. "
         "canton: Swiss canton name if identifiable from the text, otherwise null. "
         "coordinates: [latitude, longitude] ONLY if explicitly present in the text "
         "(e.g. geo meta tags or map data), otherwise null. "
@@ -247,6 +309,23 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
     }
 
 
+def apply_geocoding(spa_info: dict) -> dict:
+    """Fill in coordinates from Google Geocoding when location is known."""
+    data = spa_info.get("data") or {}
+    if data.get("coordinates"):
+        return spa_info
+
+    location = (data.get("location") or "").strip()
+    if not location:
+        return spa_info
+
+    coordinates = geocode_location(location)
+    if coordinates:
+        data["coordinates"] = coordinates
+
+    return spa_info
+
+
 def scrape_url(url: str) -> dict:
     """Scrape a spa URL and return structured result with metadata."""
     url = url.strip()
@@ -266,7 +345,11 @@ def scrape_url(url: str) -> dict:
 
     soup = parse_html(html) if html else None
     image_urls = extract_image_urls(soup, url) if soup else []
+    address_hints = extract_address_hints(soup) if soup else []
     text = extract_visible_text(soup) if soup else ""
+
+    if address_hints:
+        text = "Addresses found on page:\n" + "\n".join(address_hints) + "\n\n" + text
 
     if len(text) < MIN_TEXT_LENGTH:
         try:
@@ -274,7 +357,10 @@ def scrape_url(url: str) -> dict:
             used_playwright = True
             soup = parse_html(html)
             image_urls = extract_image_urls(soup, url)
+            address_hints = extract_address_hints(soup)
             text = extract_visible_text(soup)
+            if address_hints:
+                text = "Addresses found on page:\n" + "\n".join(address_hints) + "\n\n" + text
         except Exception as e:
             raise RuntimeError(f"Playwright fetch failed: {e}") from e
 
@@ -282,6 +368,7 @@ def scrape_url(url: str) -> dict:
         raise RuntimeError("Extracted text is too short even after Playwright fallback")
 
     spa_info = extract_spa_info_with_openai(text, url, image_urls)
+    spa_info = apply_geocoding(spa_info)
 
     return {
         **spa_info,

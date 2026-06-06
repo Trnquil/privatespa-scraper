@@ -31,9 +31,12 @@ Create a `.env` file in the `scraper` directory:
 ```
 OPENAI_API_KEY=your_key_here
 OPENAI_MODEL=gpt-4o-mini
+GOOGLE_MAPS_API_KEY=your_google_maps_key_here
 ```
 
 `OPENAI_MODEL` is optional and defaults to `gpt-4o-mini` if not set.
+
+`GOOGLE_MAPS_API_KEY` is used after scraping to geocode the extracted location into latitude/longitude.
 
 ### 5. Firebase (Admin SDK)
 
@@ -111,3 +114,4 @@ When editing a spa, use **Save to Firebase** to persist changes. New scraped spa
 3. Parses HTML with **BeautifulSoup** + **lxml**, strips nav/footer/scripts, extracts visible text
 4. If text is under 500 characters, retries with **Playwright** (headless Chromium)
 5. Sends up to ~10,000 characters of text to the **OpenAI API** for structured extraction
+6. Geocodes the extracted **location** with **Google Maps** when coordinates are not already on the page
