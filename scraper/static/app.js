@@ -4,7 +4,9 @@ const scrapeBtn = document.getElementById("scrape-btn");
 const statusEl = document.getElementById("status");
 const editorEl = document.getElementById("editor");
 const downloadBtn = document.getElementById("download-btn");
-const imagePreviewsEl = document.getElementById("image-previews");
+const imageListEl = document.getElementById("image-list");
+const newImageUrlInput = document.getElementById("new-image-url");
+const addImageBtn = document.getElementById("add-image-btn");
 
 const fields = {
   name: document.getElementById("name"),
@@ -15,9 +17,15 @@ const fields = {
   latitude: document.getElementById("latitude"),
   longitude: document.getElementById("longitude"),
   amenities: document.getElementById("amenities"),
-  images: document.getElementById("images"),
   rawPreview: document.getElementById("raw-preview"),
 };
+
+function normalizeUrl(url) {
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
 
 function setStatus(message, type) {
   statusEl.textContent = message;
@@ -40,6 +48,67 @@ function arrayToLines(items) {
   return (items || []).join("\n");
 }
 
+function getImageUrls() {
+  return [...imageListEl.querySelectorAll(".image-url-input")]
+    .map((input) => input.value.trim())
+    .filter(Boolean);
+}
+
+function createImageCard(url) {
+  const card = document.createElement("div");
+  card.className = "image-card";
+
+  const previewWrap = document.createElement("div");
+  previewWrap.className = "image-card-preview";
+
+  const img = document.createElement("img");
+  img.src = url;
+  img.alt = "Preview";
+  img.loading = "lazy";
+  img.onerror = () => {
+    img.classList.add("broken");
+  };
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "image-remove-btn";
+  removeBtn.setAttribute("aria-label", "Remove image");
+  removeBtn.textContent = "×";
+  removeBtn.addEventListener("click", () => {
+    card.remove();
+  });
+
+  previewWrap.appendChild(img);
+  previewWrap.appendChild(removeBtn);
+
+  const urlInputEl = document.createElement("input");
+  urlInputEl.type = "text";
+  urlInputEl.className = "image-url-input";
+  urlInputEl.value = url;
+  urlInputEl.placeholder = "Image URL";
+  urlInputEl.addEventListener("input", () => {
+    img.src = urlInputEl.value.trim();
+    img.classList.remove("broken");
+  });
+
+  card.appendChild(previewWrap);
+  card.appendChild(urlInputEl);
+  return card;
+}
+
+function renderImages(urls) {
+  imageListEl.innerHTML = "";
+  for (const url of urls || []) {
+    imageListEl.appendChild(createImageCard(url));
+  }
+}
+
+function addImage(url) {
+  const normalized = url.trim();
+  if (!normalized) return;
+  imageListEl.appendChild(createImageCard(normalized));
+}
+
 function populateEditor(result) {
   const data = result.data || {};
 
@@ -51,7 +120,6 @@ function populateEditor(result) {
   fields.latitude.value = data.coordinates?.[0] ?? "";
   fields.longitude.value = data.coordinates?.[1] ?? "";
   fields.amenities.value = arrayToLines(data.amenities);
-  fields.images.value = arrayToLines(data.images);
   fields.rawPreview.value = result.raw_text_preview || "";
 
   document.getElementById("meta-playwright").textContent = result.used_playwright
@@ -59,22 +127,9 @@ function populateEditor(result) {
     : "Fetched with httpx";
   document.getElementById("meta-source").textContent = result.source_url || "";
 
-  updateImagePreviews();
+  renderImages(data.images);
+  newImageUrlInput.value = "";
   editorEl.classList.remove("hidden");
-}
-
-function updateImagePreviews() {
-  imagePreviewsEl.innerHTML = "";
-  for (const url of linesToArray(fields.images.value)) {
-    const img = document.createElement("img");
-    img.src = url;
-    img.alt = "Preview";
-    img.loading = "lazy";
-    img.onerror = () => {
-      img.style.opacity = "0.35";
-    };
-    imagePreviewsEl.appendChild(img);
-  }
 }
 
 function buildExportJson() {
@@ -96,7 +151,7 @@ function buildExportJson() {
       canton: fields.canton.value.trim() || null,
       coordinates,
       description: fields.description.value.trim() || null,
-      images: linesToArray(fields.images.value),
+      images: getImageUrls(),
       location: fields.location.value.trim() || null,
       name: fields.name.value.trim() || null,
       website: fields.website.value.trim() || null,
@@ -123,9 +178,10 @@ function downloadJson() {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const url = urlInput.value.trim();
+  const url = normalizeUrl(urlInput.value);
   if (!url) return;
 
+  urlInput.value = url;
   scrapeBtn.disabled = true;
   editorEl.classList.add("hidden");
   setStatus("Scraping… this may take up to a minute.", "loading");
@@ -153,4 +209,22 @@ form.addEventListener("submit", async (event) => {
 });
 
 downloadBtn.addEventListener("click", downloadJson);
-fields.images.addEventListener("input", updateImagePreviews);
+
+addImageBtn.addEventListener("click", () => {
+  addImage(newImageUrlInput.value);
+  newImageUrlInput.value = "";
+  newImageUrlInput.focus();
+});
+
+newImageUrlInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addImage(newImageUrlInput.value);
+    newImageUrlInput.value = "";
+  }
+});
+
+urlInput.addEventListener("blur", () => {
+  const normalized = normalizeUrl(urlInput.value);
+  if (normalized) urlInput.value = normalized;
+});

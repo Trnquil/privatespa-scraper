@@ -27,8 +27,19 @@ MAX_OPENAI_TEXT = 10_000
 RAW_PREVIEW_LENGTH = 300
 
 
+def normalize_url(url: str) -> str:
+    """Add https:// when the user enters a bare domain like laspasuite.ch."""
+    url = url.strip()
+    if not url:
+        return url
+    if not url.startswith(("http://", "https://")):
+        url = f"https://{url}"
+    return url
+
+
 def validate_url(url: str) -> str:
     """Validate URL scheme and reject unsafe local/private targets."""
+    url = normalize_url(url)
     if not url.startswith(("http://", "https://")):
         raise ValueError("URL must start with http:// or https://")
 

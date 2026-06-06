@@ -15,9 +15,9 @@
 
     <form id="scrape-form" class="url-form">
       <input
-        type="url"
+        type="text"
         id="url-input"
-        placeholder="https://example-spa.com"
+        placeholder="laspasuite.ch"
         required
         autocomplete="url"
       >
@@ -80,16 +80,18 @@
       </div>
 
       <div class="field">
-        <label>Images <span class="hint">(one URL per line)</span></label>
-        <textarea id="images" rows="6"></textarea>
+        <label>Images</label>
+        <div id="image-list" class="image-list"></div>
+        <div class="add-image-row">
+          <input type="text" id="new-image-url" placeholder="https://example.com/image.jpg">
+          <button type="button" id="add-image-btn">Add image</button>
+        </div>
       </div>
 
       <div class="field">
         <label>Raw text preview <span class="hint">(read-only)</span></label>
         <textarea id="raw-preview" rows="4" readonly></textarea>
       </div>
-
-      <div id="image-previews" class="image-previews"></div>
     </section>
   </div>
 
