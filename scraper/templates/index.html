@@ -16,17 +16,6 @@
         </p>
       </header>
 
-      <section class="spa-library">
-        <div class="spa-library-header">
-          <h2>Existing spas</h2>
-          <button type="button" id="refresh-spas-btn" class="secondary-btn">
-            Refresh
-          </button>
-        </div>
-        <div id="spa-list-status" class="status hidden"></div>
-        <div id="spa-list" class="spa-list"></div>
-      </section>
-
       <section class="scrape-section">
         <h2>Scrape new spa</h2>
         <form id="scrape-form" class="url-form">
@@ -39,9 +28,27 @@
           />
           <button type="submit" id="scrape-btn">Scrape</button>
         </form>
+        <div id="status" class="status hidden"></div>
       </section>
 
-      <div id="status" class="status hidden"></div>
+      <section class="spa-library">
+        <div class="spa-library-header">
+          <h2>Existing spas</h2>
+          <button type="button" id="refresh-spas-btn" class="secondary-btn">
+            Refresh
+          </button>
+        </div>
+        <input
+          type="search"
+          id="spa-search"
+          class="spa-search"
+          placeholder="Search by name, canton, location, website…"
+          autocomplete="off"
+        />
+        <p id="spa-list-count" class="spa-list-count hidden"></p>
+        <div id="spa-list-status" class="status hidden"></div>
+        <div id="spa-list" class="spa-list"></div>
+      </section>
     </div>
 
     <script src="/static/home.js"></script>

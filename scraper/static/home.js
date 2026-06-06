@@ -4,7 +4,11 @@ const scrapeBtn = document.getElementById("scrape-btn");
 const statusEl = document.getElementById("status");
 const spaListEl = document.getElementById("spa-list");
 const spaListStatusEl = document.getElementById("spa-list-status");
+const spaListCountEl = document.getElementById("spa-list-count");
+const spaSearchInput = document.getElementById("spa-search");
 const refreshSpasBtn = document.getElementById("refresh-spas-btn");
+
+let allSpas = [];
 
 function normalizeUrl(url) {
   const trimmed = url.trim();
@@ -29,15 +33,54 @@ function clearSpaListStatus() {
   spaListStatusEl.classList.add("hidden");
 }
 
+function spaMatchesQuery(spa, query) {
+  const haystack = [
+    spa.name,
+    spa.canton,
+    spa.location,
+    spa.website,
+    spa.id,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(query);
+}
+
+function updateSpaListCount(shown, total, query) {
+  if (!total) {
+    spaListCountEl.classList.add("hidden");
+    return;
+  }
+
+  if (query) {
+    spaListCountEl.textContent = `${shown} of ${total} spas`;
+  } else {
+    spaListCountEl.textContent = `${total} spas`;
+  }
+  spaListCountEl.classList.remove("hidden");
+}
+
 function renderSpaList(spas) {
   spaListEl.innerHTML = "";
+  const query = spaSearchInput.value.trim().toLowerCase();
+  const filtered = query ? spas.filter((spa) => spaMatchesQuery(spa, query)) : spas;
+
+  updateSpaListCount(filtered.length, spas.length, query);
 
   if (!spas.length) {
+    spaListCountEl.classList.add("hidden");
     spaListEl.innerHTML = '<p class="spa-list-empty">No spas found in Firestore.</p>';
     return;
   }
 
-  for (const spa of spas) {
+  if (!filtered.length) {
+    spaListEl.innerHTML = '<p class="spa-list-empty">No spas match your search.</p>';
+    return;
+  }
+
+  for (const spa of filtered) {
     const link = document.createElement("a");
     link.className = "spa-list-item";
     link.href = `/spa/${encodeURIComponent(spa.id)}`;
@@ -66,11 +109,13 @@ async function loadSpaList() {
       throw new Error(result.error || "Failed to load spas");
     }
 
+    allSpas = result.spas || [];
     clearSpaListStatus();
-    renderSpaList(result.spas || []);
+    renderSpaList(allSpas);
   } catch (error) {
     setSpaListStatus(error.message, "error");
     spaListEl.innerHTML = "";
+    spaListCountEl.classList.add("hidden");
   } finally {
     refreshSpasBtn.disabled = false;
   }
@@ -108,6 +153,10 @@ form.addEventListener("submit", async (event) => {
 urlInput.addEventListener("blur", () => {
   const normalized = normalizeUrl(urlInput.value);
   if (normalized) urlInput.value = normalized;
+});
+
+spaSearchInput.addEventListener("input", () => {
+  renderSpaList(allSpas);
 });
 
 refreshSpasBtn.addEventListener("click", loadSpaList);
