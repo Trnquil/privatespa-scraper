@@ -4,7 +4,7 @@
 from flask import Flask, jsonify, render_template, request
 
 from firebase_client import init_firebase
-from firestore_spas import get_spa, list_spas, update_spa
+from firestore_spas import create_spa, get_spa, list_spas, update_spa
 from scrape_spa import scrape_url
 
 app = Flask(__name__)
@@ -55,6 +55,22 @@ def api_get_spa(spa_id):
         if not spa:
             return jsonify({"error": "Spa not found"}), 404
         return jsonify(spa)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/spas")
+def api_create_spa():
+    body = request.get_json(silent=True) or {}
+    data = body.get("data")
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must include a data object"}), 400
+
+    try:
+        spa = create_spa(data)
+        return jsonify(spa), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

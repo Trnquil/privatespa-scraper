@@ -1,6 +1,5 @@
 const statusEl = document.getElementById("status");
 const saveSpaBtn = document.getElementById("save-spa-btn");
-const downloadJsonBtn = document.getElementById("download-btn");
 const editorTitleEl = document.getElementById("editor-title");
 const metaModeEl = document.getElementById("meta-mode");
 const rawPreviewFieldEl = document.getElementById("raw-preview-field");
@@ -196,27 +195,25 @@ function populateEditor(result, options = {}) {
 
   if (editorMode === "firestore") {
     editorTitleEl.textContent = data.name || "Edit spa";
-    metaModeEl.textContent = `Firestore ID: ${currentSpaId}`;
+    metaModeEl.textContent = `Firebase ID: ${currentSpaId}`;
     document.getElementById("meta-playwright").textContent = "";
     document.getElementById("meta-source").textContent = data.website || "";
     rawPreviewFieldEl.classList.add("hidden");
-    saveSpaBtn.classList.remove("hidden");
   } else {
-    editorTitleEl.textContent = data.name || "Edit scraped spa";
+    editorTitleEl.textContent = data.name || "New scraped spa";
     metaModeEl.textContent = "New scrape";
     document.getElementById("meta-playwright").textContent = result.used_playwright
       ? "Fetched with Playwright"
       : "Fetched with httpx";
     document.getElementById("meta-source").textContent = result.source_url || "";
     rawPreviewFieldEl.classList.remove("hidden");
-    saveSpaBtn.classList.add("hidden");
   }
 
   renderImages(data.images);
   newImageUrlInput.value = "";
 }
 
-function buildExportJson() {
+function buildSpaPayload() {
   const lat = fields.latitude.value.trim();
   const lng = fields.longitude.value.trim();
   let coordinates = null;
@@ -243,50 +240,20 @@ function buildExportJson() {
   };
 }
 
-function downloadJson() {
-  const payload = buildExportJson();
-  const slug = (payload.data.name || "spa")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  const filename = `${slug || "spa"}.json`;
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
-async function loadSpa(spaId) {
-  setStatus("Loading spa…", "loading");
-
-  try {
-    const response = await fetch(`/api/spas/${encodeURIComponent(spaId)}`);
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.error || "Failed to load spa");
-    }
-
-    clearStatus();
-    populateEditor(result, { mode: "firestore", spaId });
-  } catch (error) {
-    setStatus(error.message, "error");
-  }
-}
-
 async function saveSpa() {
-  if (!currentSpaId) return;
-
   saveSpaBtn.disabled = true;
-  setStatus("Saving to Firestore…", "loading");
+  setStatus("Saving to Firebase…", "loading");
 
   try {
-    const payload = buildExportJson();
-    const response = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}`, {
-      method: "PUT",
+    const payload = buildSpaPayload();
+    const isNew = !currentSpaId;
+    const url = isNew
+      ? "/api/spas"
+      : `/api/spas/${encodeURIComponent(currentSpaId)}`;
+    const method = isNew ? "POST" : "PUT";
+
+    const response = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -295,9 +262,15 @@ async function saveSpa() {
       throw new Error(result.error || "Failed to save spa");
     }
 
+    if (isNew) {
+      sessionStorage.removeItem("scrapeResult");
+      window.location.href = `/spa/${encodeURIComponent(result.id)}`;
+      return;
+    }
+
     clearStatus();
-    populateEditor(result, { mode: "firestore", spaId: currentSpaId });
-    setStatus("Saved to Firestore.", "loading");
+    populateEditor(result, { mode: "firestore", spaId: result.id });
+    setStatus("Saved to Firebase.", "loading");
     setTimeout(clearStatus, 2000);
   } catch (error) {
     setStatus(error.message, "error");
@@ -321,6 +294,23 @@ function loadScrapeResult() {
   }
 }
 
+async function loadSpa(spaId) {
+  setStatus("Loading spa…", "loading");
+
+  try {
+    const response = await fetch(`/api/spas/${encodeURIComponent(spaId)}`);
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to load spa");
+    }
+
+    clearStatus();
+    populateEditor(result, { mode: "firestore", spaId });
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
+}
+
 async function initEditor() {
   if (editorMode === "firestore") {
     if (!currentSpaId) {
@@ -334,7 +324,6 @@ async function initEditor() {
   loadScrapeResult();
 }
 
-downloadJsonBtn.addEventListener("click", downloadJson);
 saveSpaBtn.addEventListener("click", saveSpa);
 
 addImageBtn.addEventListener("click", () => {

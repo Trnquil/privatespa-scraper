@@ -79,7 +79,7 @@ Open [http://127.0.0.1:5000](http://127.0.0.1:5000):
 - **Existing spas** — click a spa to open its edit page at `/spa/<id>`
 - **Scrape new spa** — after scraping, opens `/scrape/edit` in a new page
 
-When editing a Firestore spa, use **Save to Firestore** to persist changes.
+When editing a spa, use **Save to Firebase** to persist changes. New scraped spas are also saved to Firebase on first save.
 
 ## Example output
 

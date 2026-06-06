@@ -79,8 +79,7 @@ def get_spa(spa_id: str) -> dict | None:
     return _spa_to_editor_payload(doc.id, doc.to_dict())
 
 
-def update_spa(spa_id: str, data: dict) -> dict:
-    """Update an existing spa document."""
+def _build_spa_payload(data: dict) -> dict:
     if not isinstance(data, dict):
         raise ValueError("Spa data must be an object")
 
@@ -95,7 +94,20 @@ def update_spa(spa_id: str, data: dict) -> dict:
             payload[field] = list(value or [])
         else:
             payload[field] = value
+    return payload
 
+
+def create_spa(data: dict) -> dict:
+    """Create a new spa document with an auto-generated ID."""
+    payload = _build_spa_payload(data)
+    doc_ref = get_db().collection("spas").document()
+    doc_ref.set(payload)
+    return _spa_to_editor_payload(doc_ref.id, payload)
+
+
+def update_spa(spa_id: str, data: dict) -> dict:
+    """Update an existing spa document."""
+    payload = _build_spa_payload(data)
     get_db().collection("spas").document(spa_id).update(payload)
     updated = get_spa(spa_id)
     if not updated:
