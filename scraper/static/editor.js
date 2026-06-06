@@ -1,9 +1,9 @@
-const form = document.getElementById("scrape-form");
-const urlInput = document.getElementById("url-input");
-const scrapeBtn = document.getElementById("scrape-btn");
 const statusEl = document.getElementById("status");
-const editorEl = document.getElementById("editor");
-const downloadBtn = document.getElementById("download-btn");
+const saveSpaBtn = document.getElementById("save-spa-btn");
+const downloadJsonBtn = document.getElementById("download-btn");
+const editorTitleEl = document.getElementById("editor-title");
+const metaModeEl = document.getElementById("meta-mode");
+const rawPreviewFieldEl = document.getElementById("raw-preview-field");
 const imageListEl = document.getElementById("image-list");
 const newImageUrlInput = document.getElementById("new-image-url");
 const addImageBtn = document.getElementById("add-image-btn");
@@ -14,7 +14,13 @@ const lightboxPrevBtn = document.getElementById("lightbox-prev");
 const lightboxNextBtn = document.getElementById("lightbox-next");
 const lightboxDeleteBtn = document.getElementById("lightbox-delete");
 
+const editorConfig = JSON.parse(
+  document.getElementById("editor-config").textContent
+);
+
 let lightboxIndex = 0;
+let currentSpaId = editorConfig.spaId || null;
+let editorMode = editorConfig.mode || "firestore";
 
 const fields = {
   name: document.getElementById("name"),
@@ -27,13 +33,6 @@ const fields = {
   amenities: document.getElementById("amenities"),
   rawPreview: document.getElementById("raw-preview"),
 };
-
-function normalizeUrl(url) {
-  const trimmed = url.trim();
-  if (!trimmed) return trimmed;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
-}
 
 function setStatus(message, type) {
   statusEl.textContent = message;
@@ -180,8 +179,10 @@ function addImage(url) {
   imageListEl.appendChild(createImageCard(normalized));
 }
 
-function populateEditor(result) {
+function populateEditor(result, options = {}) {
   const data = result.data || {};
+  editorMode = options.mode || editorMode;
+  currentSpaId = options.spaId || result.id || currentSpaId;
 
   fields.name.value = data.name || "";
   fields.description.value = data.description || "";
@@ -193,13 +194,26 @@ function populateEditor(result) {
   fields.amenities.value = arrayToLines(data.amenities);
   fields.rawPreview.value = result.raw_text_preview || "";
 
-  document.getElementById("meta-playwright").textContent =
-    result.used_playwright ? "Fetched with Playwright" : "Fetched with httpx";
-  document.getElementById("meta-source").textContent = result.source_url || "";
+  if (editorMode === "firestore") {
+    editorTitleEl.textContent = data.name || "Edit spa";
+    metaModeEl.textContent = `Firestore ID: ${currentSpaId}`;
+    document.getElementById("meta-playwright").textContent = "";
+    document.getElementById("meta-source").textContent = data.website || "";
+    rawPreviewFieldEl.classList.add("hidden");
+    saveSpaBtn.classList.remove("hidden");
+  } else {
+    editorTitleEl.textContent = data.name || "Edit scraped spa";
+    metaModeEl.textContent = "New scrape";
+    document.getElementById("meta-playwright").textContent = result.used_playwright
+      ? "Fetched with Playwright"
+      : "Fetched with httpx";
+    document.getElementById("meta-source").textContent = result.source_url || "";
+    rawPreviewFieldEl.classList.remove("hidden");
+    saveSpaBtn.classList.add("hidden");
+  }
 
   renderImages(data.images);
   newImageUrlInput.value = "";
-  editorEl.classList.remove("hidden");
 }
 
 function buildExportJson() {
@@ -246,39 +260,82 @@ function downloadJson() {
   URL.revokeObjectURL(link.href);
 }
 
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const url = normalizeUrl(urlInput.value);
-  if (!url) return;
-
-  urlInput.value = url;
-  scrapeBtn.disabled = true;
-  editorEl.classList.add("hidden");
-  setStatus("Scraping… this may take up to a minute.", "loading");
+async function loadSpa(spaId) {
+  setStatus("Loading spa…", "loading");
 
   try {
-    const response = await fetch("/api/scrape", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-    });
-
+    const response = await fetch(`/api/spas/${encodeURIComponent(spaId)}`);
     const result = await response.json();
-
     if (!response.ok) {
-      throw new Error(result.error || "Scrape failed");
+      throw new Error(result.error || "Failed to load spa");
     }
 
     clearStatus();
-    populateEditor(result);
+    populateEditor(result, { mode: "firestore", spaId });
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
+}
+
+async function saveSpa() {
+  if (!currentSpaId) return;
+
+  saveSpaBtn.disabled = true;
+  setStatus("Saving to Firestore…", "loading");
+
+  try {
+    const payload = buildExportJson();
+    const response = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to save spa");
+    }
+
+    clearStatus();
+    populateEditor(result, { mode: "firestore", spaId: currentSpaId });
+    setStatus("Saved to Firestore.", "loading");
+    setTimeout(clearStatus, 2000);
   } catch (error) {
     setStatus(error.message, "error");
   } finally {
-    scrapeBtn.disabled = false;
+    saveSpaBtn.disabled = false;
   }
-});
+}
 
-downloadBtn.addEventListener("click", downloadJson);
+function loadScrapeResult() {
+  const raw = sessionStorage.getItem("scrapeResult");
+  if (!raw) {
+    setStatus("No scrape result found. Go back and scrape a URL first.", "error");
+    return;
+  }
+
+  try {
+    const result = JSON.parse(raw);
+    populateEditor(result, { mode: "scrape" });
+  } catch {
+    setStatus("Could not load scrape result.", "error");
+  }
+}
+
+async function initEditor() {
+  if (editorMode === "firestore") {
+    if (!currentSpaId) {
+      setStatus("Missing spa ID.", "error");
+      return;
+    }
+    await loadSpa(currentSpaId);
+    return;
+  }
+
+  loadScrapeResult();
+}
+
+downloadJsonBtn.addEventListener("click", downloadJson);
+saveSpaBtn.addEventListener("click", saveSpa);
 
 addImageBtn.addEventListener("click", () => {
   addImage(newImageUrlInput.value);
@@ -292,11 +349,6 @@ newImageUrlInput.addEventListener("keydown", (event) => {
     addImage(newImageUrlInput.value);
     newImageUrlInput.value = "";
   }
-});
-
-urlInput.addEventListener("blur", () => {
-  const normalized = normalizeUrl(urlInput.value);
-  if (normalized) urlInput.value = normalized;
 });
 
 lightboxCloseBtn.addEventListener("click", closeLightbox);
@@ -328,3 +380,5 @@ document.addEventListener("keydown", (event) => {
     showLightboxRelative(1);
   }
 });
+
+initEditor();

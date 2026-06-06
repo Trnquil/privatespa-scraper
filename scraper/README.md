@@ -35,6 +35,29 @@ OPENAI_MODEL=gpt-4o-mini
 
 `OPENAI_MODEL` is optional and defaults to `gpt-4o-mini` if not set.
 
+### 5. Firebase (Admin SDK)
+
+Place your service account JSON in the `scraper` directory (default):
+
+```
+privatespa-com-firebase-adminsdk-fbsvc-9d4b4739cd.json
+```
+
+Or set a custom path:
+
+```
+FIREBASE_CREDENTIALS_PATH=/path/to/serviceAccountKey.json
+```
+
+The web app initializes Firebase on startup and reads/writes the `spas` Firestore collection.
+
+Verify the connection:
+
+```bash
+curl http://127.0.0.1:5000/api/health
+curl http://127.0.0.1:5000/api/spas
+```
+
 ## Usage
 
 ### CLI
@@ -51,7 +74,12 @@ Start the local frontend:
 python app.py
 ```
 
-Open [http://127.0.0.1:5000](http://127.0.0.1:5000), paste a URL, scrape, edit the fields, then click **Download JSON**.
+Open [http://127.0.0.1:5000](http://127.0.0.1:5000):
+
+- **Existing spas** — click a spa to open its edit page at `/spa/<id>`
+- **Scrape new spa** — after scraping, opens `/scrape/edit` in a new page
+
+When editing a Firestore spa, use **Save to Firestore** to persist changes.
 
 ## Example output
 

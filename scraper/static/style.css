@@ -49,15 +49,134 @@ button {
 }
 
 .url-form button,
-.download-btn {
+.download-btn,
+.save-btn {
   padding: 0.75rem 1.25rem;
   background: #1a6b4a;
   color: #fff;
 }
 
 .url-form button:hover,
-.download-btn:hover {
+.download-btn:hover,
+.save-btn:hover {
   background: #145a3e;
+}
+
+.secondary-btn {
+  padding: 0.55rem 0.9rem;
+  background: #e2e8f0;
+  color: #1a1a1a;
+}
+
+.secondary-btn:hover {
+  background: #cbd5e1;
+}
+
+.secondary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spa-library,
+.scrape-section {
+  margin-bottom: 2rem;
+}
+
+.spa-library-header,
+.scrape-section h2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.spa-library-header h2,
+.scrape-section h2 {
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+}
+
+.spa-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.spa-list-empty {
+  margin: 0;
+  color: #666;
+}
+
+.spa-list-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+}
+
+.page-header {
+  margin-bottom: 1.5rem;
+}
+
+.page-header h1 {
+  margin: 0.5rem 0 0;
+  font-size: 1.75rem;
+}
+
+.back-link {
+  display: inline-block;
+  color: #1a6b4a;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.spa-list-item:hover {
+  border-color: #1a6b4a;
+  background: #f8fffb;
+}
+
+.spa-list-item strong {
+  font-size: 0.98rem;
+}
+
+.spa-list-item span {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.save-btn {
+  background: #1d4ed8;
+}
+
+.save-btn:hover {
+  background: #1e40af;
 }
 
 .url-form button:disabled {
@@ -87,19 +206,11 @@ button {
 }
 
 .editor {
-  margin-top: 2rem;
+  margin-top: 0;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 1.5rem;
-}
-
-.editor-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
 }
 
 .editor-header h2 {

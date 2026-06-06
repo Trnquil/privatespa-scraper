@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Edit Spa · PrivateSpa</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="page-header">
+        <a href="/" class="back-link">← Back to all spas</a>
+        <h1 id="editor-title">Edit spa</h1>
+      </header>
+
+      <div id="status" class="status hidden"></div>
+
+      <section id="editor" class="editor">
+        <div class="editor-header">
+          <div class="meta">
+            <span id="meta-mode"></span>
+            <span id="meta-playwright"></span>
+            <span id="meta-source"></span>
+          </div>
+          <div class="editor-actions">
+            <button type="button" id="save-spa-btn" class="save-btn hidden">
+              Save to Firestore
+            </button>
+            <button type="button" id="download-btn" class="download-btn">
+              Download JSON
+            </button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="name">Name</label>
+          <input type="text" id="name" />
+        </div>
+
+        <div class="field">
+          <label for="description">Description</label>
+          <textarea id="description" rows="4"></textarea>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="location">Location</label>
+            <input type="text" id="location" />
+          </div>
+          <div class="field">
+            <label for="canton">Canton</label>
+            <input type="text" id="canton" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="website">Website</label>
+          <input type="url" id="website" />
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="latitude">Latitude</label>
+            <input type="text" id="latitude" placeholder="47.3769" />
+          </div>
+          <div class="field">
+            <label for="longitude">Longitude</label>
+            <input type="text" id="longitude" placeholder="8.5417" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Amenities <span class="hint">(one per line)</span></label>
+          <textarea id="amenities" rows="6"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Images</label>
+          <div id="image-list" class="image-list"></div>
+          <div class="add-image-row">
+            <input
+              type="text"
+              id="new-image-url"
+              placeholder="https://example.com/image.jpg"
+            />
+            <button type="button" id="add-image-btn">Add image</button>
+          </div>
+        </div>
+
+        <div class="field" id="raw-preview-field">
+          <label>Raw text preview <span class="hint">(read-only)</span></label>
+          <textarea id="raw-preview" rows="4" readonly></textarea>
+        </div>
+      </section>
+    </div>
+
+    <div id="lightbox" class="lightbox hidden" aria-hidden="true">
+      <button
+        type="button"
+        id="lightbox-close"
+        class="lightbox-close"
+        aria-label="Close"
+      >
+        ×
+      </button>
+      <div class="lightbox-stage">
+        <div class="lightbox-image-wrap">
+          <img id="lightbox-img" alt="Expanded preview" />
+          <button
+            type="button"
+            id="lightbox-prev"
+            class="lightbox-nav lightbox-prev"
+            aria-label="Previous image"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            id="lightbox-next"
+            class="lightbox-nav lightbox-next"
+            aria-label="Next image"
+          >
+            ›
+          </button>
+          <button
+            type="button"
+            id="lightbox-delete"
+            class="lightbox-delete"
+            aria-label="Delete image"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script id="editor-config" type="application/json">
+      {{ editor_config | tojson }}
+    </script>
+    <script src="/static/editor.js"></script>
+  </body>
+</html>
