@@ -8,7 +8,11 @@ from firebase_client import init_firebase
 from firestore_spas import create_spa, get_spa, list_spas, update_spa
 from image_info import get_image_info
 from scrape_spa import scrape_url
-from storage_images import upload_spa_images
+from storage_images import (
+    generate_all_spa_thumbnails,
+    generate_spa_thumbnail,
+    upload_spa_images,
+)
 
 app = Flask(__name__)
 
@@ -47,6 +51,15 @@ def health():
 def api_list_spas():
     try:
         return jsonify({"spas": list_spas()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/spas/generate-all-thumbnails")
+def api_generate_all_spa_thumbnails():
+    try:
+        result = generate_all_spa_thumbnails()
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -106,6 +119,22 @@ def api_image_info():
         return jsonify({"error": str(e)}), 400
     except httpx.HTTPError as e:
         return jsonify({"error": f"Failed to fetch image: {e}"}), 502
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/spas/<spa_id>/generate-thumbnail")
+def api_generate_spa_thumbnail(spa_id):
+    body = request.get_json(silent=True) or {}
+    source_url = (body.get("url") or "").strip()
+    if not source_url:
+        return jsonify({"error": "Request body must include a url"}), 400
+
+    try:
+        result = generate_spa_thumbnail(spa_id, source_url)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

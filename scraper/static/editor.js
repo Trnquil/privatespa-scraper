@@ -2,6 +2,8 @@ const statusEl = document.getElementById("status");
 const saveSpaBtn = document.getElementById("save-spa-btn");
 const uploadImagesBtn = document.getElementById("upload-images-btn");
 const uploadStatusEl = document.getElementById("upload-status");
+const generateThumbnailBtn = document.getElementById("generate-thumbnail-btn");
+const thumbnailStatusEl = document.getElementById("thumbnail-status");
 const spaNavEl = document.getElementById("spa-nav");
 const spaPrevBtn = document.getElementById("spa-prev-btn");
 const spaNextBtn = document.getElementById("spa-next-btn");
@@ -20,6 +22,10 @@ const lightboxCloseBtn = document.getElementById("lightbox-close");
 const lightboxPrevBtn = document.getElementById("lightbox-prev");
 const lightboxNextBtn = document.getElementById("lightbox-next");
 const lightboxDeleteBtn = document.getElementById("lightbox-delete");
+const thumbnailFieldEl = document.getElementById("thumbnail-field");
+const thumbnailImgEl = document.getElementById("thumbnail-img");
+const thumbnailEmptyEl = document.getElementById("thumbnail-empty");
+const thumbnailMetaEl = document.getElementById("thumbnail-meta");
 
 const editorConfig = JSON.parse(
   document.getElementById("editor-config").textContent
@@ -61,6 +67,16 @@ function setUploadStatus(message, type) {
 
 function clearUploadStatus() {
   uploadStatusEl.classList.add("hidden");
+}
+
+function setThumbnailStatus(message, type) {
+  thumbnailStatusEl.textContent = message;
+  thumbnailStatusEl.className = `thumbnail-status ${type}`;
+  thumbnailStatusEl.classList.remove("hidden");
+}
+
+function clearThumbnailStatus() {
+  thumbnailStatusEl.classList.add("hidden");
 }
 
 async function loadSpaList() {
@@ -126,13 +142,18 @@ function getImageUrls() {
   return getImageCards().map(getImageUrlFromCard).filter(Boolean);
 }
 
-function syncUploadImagesButton() {
-  if (!uploadImagesBtn) return;
-  const canUpload =
+function syncImageActions() {
+  const canUseImages =
     editorMode === "firestore" &&
     Boolean(currentSpaId) &&
     getImageUrls().length > 0;
-  uploadImagesBtn.disabled = !canUpload;
+
+  uploadImagesBtn.disabled = !canUseImages;
+  generateThumbnailBtn.disabled = !canUseImages;
+}
+
+function syncUploadImagesButton() {
+  syncImageActions();
 }
 
 function removeImageAtIndex(index) {
@@ -419,6 +440,59 @@ function addImage(url) {
   syncUploadImagesButton();
 }
 
+async function loadThumbnailMeta(url) {
+  const normalized = (url || "").trim();
+  if (!normalized) {
+    thumbnailMetaEl.classList.add("hidden");
+    return;
+  }
+
+  thumbnailMetaEl.textContent = "Loading…";
+  thumbnailMetaEl.classList.remove("hidden");
+
+  try {
+    const response = await fetch(
+      `/api/image-info?url=${encodeURIComponent(normalized)}`
+    );
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to load thumbnail info");
+    }
+    thumbnailMetaEl.textContent = formatImageMeta(result);
+  } catch {
+    thumbnailMetaEl.textContent = "Size unavailable";
+  }
+}
+
+function renderThumbnail(thumbnailUrl) {
+  const url = (thumbnailUrl || "").trim();
+
+  if (editorMode !== "firestore") {
+    thumbnailFieldEl.classList.add("hidden");
+    return;
+  }
+
+  thumbnailFieldEl.classList.remove("hidden");
+
+  if (!url) {
+    thumbnailImgEl.classList.add("hidden");
+    thumbnailImgEl.removeAttribute("src");
+    thumbnailEmptyEl.classList.remove("hidden");
+    thumbnailMetaEl.classList.add("hidden");
+    return;
+  }
+
+  thumbnailEmptyEl.classList.add("hidden");
+  thumbnailImgEl.src = url;
+  thumbnailImgEl.classList.remove("hidden");
+  thumbnailImgEl.onerror = () => {
+    thumbnailImgEl.classList.add("hidden");
+    thumbnailEmptyEl.textContent = "Thumbnail could not be loaded.";
+    thumbnailEmptyEl.classList.remove("hidden");
+  };
+  loadThumbnailMeta(url);
+}
+
 function setMetaTag(el, text) {
   const value = (text || "").trim();
   el.textContent = value;
@@ -458,6 +532,7 @@ function populateEditor(result, options = {}) {
   }
 
   renderImages(data.images);
+  renderThumbnail(data.thumbnail);
   newImageUrlInput.value = "";
   syncUploadImagesButton();
 }
@@ -487,6 +562,51 @@ function buildSpaPayload() {
       website: fields.website.value.trim() || null,
     },
   };
+}
+
+async function generateThumbnail() {
+  if (!currentSpaId) {
+    setThumbnailStatus("Save the spa to Firebase before generating a thumbnail.", "error");
+    return;
+  }
+
+  const firstUrl = getImageUrls()[0];
+  if (!firstUrl) {
+    setThumbnailStatus("Add at least one image first.", "error");
+    return;
+  }
+
+  generateThumbnailBtn.disabled = true;
+  saveSpaBtn.disabled = true;
+  uploadImagesBtn.disabled = true;
+  setThumbnailStatus("Generating thumbnail…", "loading");
+
+  try {
+    const response = await fetch(
+      `/api/spas/${encodeURIComponent(currentSpaId)}/generate-thumbnail`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: firstUrl }),
+      }
+    );
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to generate thumbnail");
+    }
+
+    renderThumbnail(result.public_url);
+    setThumbnailStatus(
+      `Saved ${result.width} × ${result.height} · ${result.size_kb} KB to thumbnail/`,
+      "success"
+    );
+    setTimeout(clearThumbnailStatus, 4000);
+  } catch (error) {
+    setThumbnailStatus(error.message, "error");
+  } finally {
+    saveSpaBtn.disabled = false;
+    syncImageActions();
+  }
 }
 
 async function uploadImagesToFirebase() {
@@ -638,6 +758,7 @@ async function initEditor() {
 
 saveSpaBtn.addEventListener("click", saveSpa);
 uploadImagesBtn.addEventListener("click", uploadImagesToFirebase);
+generateThumbnailBtn.addEventListener("click", generateThumbnail);
 spaPrevBtn.addEventListener("click", () => goToAdjacentSpa(-1));
 spaNextBtn.addEventListener("click", () => goToAdjacentSpa(1));
 

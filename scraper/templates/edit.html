@@ -111,6 +111,30 @@
               Convert & Upload
             </button>
             <span id="upload-status" class="upload-status hidden"></span>
+            <button
+              type="button"
+              id="generate-thumbnail-btn"
+              class="thumbnail-btn"
+              disabled
+            >
+              Generate thumbnail
+            </button>
+            <span id="thumbnail-status" class="thumbnail-status hidden"></span>
+          </div>
+        </div>
+
+        <div class="field" id="thumbnail-field">
+          <label>Thumbnail</label>
+          <div id="thumbnail-preview" class="thumbnail-preview">
+            <p id="thumbnail-empty" class="thumbnail-empty">
+              No thumbnail yet. Generate one from the first image above.
+            </p>
+            <img
+              id="thumbnail-img"
+              class="thumbnail-img hidden"
+              alt="Spa thumbnail"
+            />
+            <span id="thumbnail-meta" class="thumbnail-meta hidden"></span>
           </div>
         </div>
 

@@ -14,6 +14,7 @@ SPA_FIELDS = (
     "images",
     "location",
     "name",
+    "thumbnail",
     "website",
 )
 
@@ -48,6 +49,7 @@ def _spa_to_editor_payload(doc_id: str, data: dict) -> dict:
             "images": list(data.get("images") or []),
             "location": data.get("location"),
             "name": data.get("name"),
+            "thumbnail": data.get("thumbnail"),
             "website": data.get("website"),
         },
     }
@@ -76,7 +78,16 @@ def get_spa(spa_id: str) -> dict | None:
     doc = get_db().collection("spas").document(spa_id).get()
     if not doc.exists:
         return None
-    return _spa_to_editor_payload(doc.id, doc.to_dict())
+
+    payload = _spa_to_editor_payload(doc.id, doc.to_dict())
+    if not payload["data"].get("thumbnail"):
+        from storage_images import get_stored_thumbnail_url
+
+        stored_thumbnail = get_stored_thumbnail_url(spa_id)
+        if stored_thumbnail:
+            payload["data"]["thumbnail"] = stored_thumbnail
+
+    return payload
 
 
 def _build_spa_payload(data: dict) -> dict:
@@ -113,3 +124,8 @@ def update_spa(spa_id: str, data: dict) -> dict:
     if not updated:
         raise RuntimeError("Spa not found after update")
     return updated
+
+
+def update_spa_thumbnail(spa_id: str, thumbnail_url: str) -> None:
+    """Persist the spa thumbnail URL in Firestore."""
+    get_db().collection("spas").document(spa_id).update({"thumbnail": thumbnail_url})
