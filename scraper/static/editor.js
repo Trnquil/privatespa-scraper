@@ -1,5 +1,11 @@
 const statusEl = document.getElementById("status");
 const saveSpaBtn = document.getElementById("save-spa-btn");
+const uploadImagesBtn = document.getElementById("upload-images-btn");
+const uploadStatusEl = document.getElementById("upload-status");
+const spaNavEl = document.getElementById("spa-nav");
+const spaPrevBtn = document.getElementById("spa-prev-btn");
+const spaNextBtn = document.getElementById("spa-next-btn");
+const spaNavLabelEl = document.getElementById("spa-nav-label");
 const editorTitleEl = document.getElementById("editor-title");
 const metaModeEl = document.getElementById("meta-mode");
 const metaPlaywrightEl = document.getElementById("meta-playwright");
@@ -23,6 +29,7 @@ let lightboxIndex = 0;
 let currentSpaId = editorConfig.spaId || null;
 let editorMode = editorConfig.mode || "firestore";
 let draggedImageCard = null;
+let allSpas = [];
 
 const fields = {
   name: document.getElementById("name"),
@@ -44,6 +51,56 @@ function setStatus(message, type) {
 
 function clearStatus() {
   statusEl.classList.add("hidden");
+}
+
+function setUploadStatus(message, type) {
+  uploadStatusEl.textContent = message;
+  uploadStatusEl.className = `upload-status ${type}`;
+  uploadStatusEl.classList.remove("hidden");
+}
+
+function clearUploadStatus() {
+  uploadStatusEl.classList.add("hidden");
+}
+
+async function loadSpaList() {
+  const response = await fetch("/api/spas");
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.error || "Failed to load spa list");
+  }
+  allSpas = result.spas || [];
+  return allSpas;
+}
+
+function getCurrentSpaIndex() {
+  return allSpas.findIndex((spa) => spa.id === currentSpaId);
+}
+
+function syncSpaNav() {
+  if (editorMode !== "firestore" || !currentSpaId || !allSpas.length) {
+    spaNavEl.classList.add("hidden");
+    return;
+  }
+
+  const index = getCurrentSpaIndex();
+  if (index === -1) {
+    spaNavEl.classList.add("hidden");
+    return;
+  }
+
+  spaNavEl.classList.remove("hidden");
+  spaNavLabelEl.textContent = `${index + 1} of ${allSpas.length}`;
+
+  spaPrevBtn.disabled = index <= 0;
+  spaNextBtn.disabled = index >= allSpas.length - 1;
+}
+
+function goToAdjacentSpa(step) {
+  const index = getCurrentSpaIndex();
+  const nextSpa = allSpas[index + step];
+  if (!nextSpa) return;
+  window.location.href = `/spa/${encodeURIComponent(nextSpa.id)}`;
 }
 
 function linesToArray(text) {
@@ -69,6 +126,15 @@ function getImageUrls() {
   return getImageCards().map(getImageUrlFromCard).filter(Boolean);
 }
 
+function syncUploadImagesButton() {
+  if (!uploadImagesBtn) return;
+  const canUpload =
+    editorMode === "firestore" &&
+    Boolean(currentSpaId) &&
+    getImageUrls().length > 0;
+  uploadImagesBtn.disabled = !canUpload;
+}
+
 function removeImageAtIndex(index) {
   const cards = getImageCards();
   const card = cards[index];
@@ -78,10 +144,12 @@ function removeImageAtIndex(index) {
 
   if (!getImageCards().length) {
     closeLightbox();
+    syncUploadImagesButton();
     return;
   }
 
   openLightboxAtIndex(Math.min(index, getImageCards().length - 1));
+  syncUploadImagesButton();
 }
 
 function deleteCurrentLightboxImage() {
@@ -222,6 +290,43 @@ function setupImageDragAndDrop() {
   });
 }
 
+function formatImageMeta(info) {
+  if (!info) return "—";
+  return `${info.width} × ${info.height} · ${info.size_kb} KB`;
+}
+
+function loadImageMeta(card, url) {
+  const metaEl = card.querySelector(".image-meta");
+  if (!metaEl) return;
+
+  const normalized = (url || "").trim();
+  if (!normalized) {
+    metaEl.textContent = "—";
+    return;
+  }
+
+  if (card._metaTimer) {
+    clearTimeout(card._metaTimer);
+  }
+
+  metaEl.textContent = "Loading…";
+
+  card._metaTimer = setTimeout(async () => {
+    try {
+      const response = await fetch(
+        `/api/image-info?url=${encodeURIComponent(normalized)}`
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to load image info");
+      }
+      metaEl.textContent = formatImageMeta(result);
+    } catch {
+      metaEl.textContent = "Size unavailable";
+    }
+  }, 300);
+}
+
 function createImageCard(url) {
   const card = document.createElement("div");
   card.className = "image-card";
@@ -269,10 +374,15 @@ function createImageCard(url) {
   removeBtn.addEventListener("click", (event) => {
     event.stopPropagation();
     card.remove();
+    syncUploadImagesButton();
   });
 
   previewWrap.appendChild(img);
   previewWrap.appendChild(removeBtn);
+
+  const metaEl = document.createElement("div");
+  metaEl.className = "image-meta";
+  metaEl.textContent = "Loading…";
 
   const urlInputEl = document.createElement("input");
   urlInputEl.type = "text";
@@ -280,13 +390,17 @@ function createImageCard(url) {
   urlInputEl.value = url;
   urlInputEl.placeholder = "Image URL";
   urlInputEl.addEventListener("input", () => {
-    img.src = urlInputEl.value.trim();
+    const nextUrl = urlInputEl.value.trim();
+    img.src = nextUrl;
     img.classList.remove("broken");
+    loadImageMeta(card, nextUrl);
   });
 
   card.appendChild(dragHandle);
   card.appendChild(previewWrap);
+  card.appendChild(metaEl);
   card.appendChild(urlInputEl);
+  loadImageMeta(card, url);
   return card;
 }
 
@@ -295,12 +409,14 @@ function renderImages(urls) {
   for (const url of urls || []) {
     imageListEl.appendChild(createImageCard(url));
   }
+  syncUploadImagesButton();
 }
 
 function addImage(url) {
   const normalized = url.trim();
   if (!normalized) return;
   imageListEl.appendChild(createImageCard(normalized));
+  syncUploadImagesButton();
 }
 
 function setMetaTag(el, text) {
@@ -343,6 +459,7 @@ function populateEditor(result, options = {}) {
 
   renderImages(data.images);
   newImageUrlInput.value = "";
+  syncUploadImagesButton();
 }
 
 function buildSpaPayload() {
@@ -370,6 +487,63 @@ function buildSpaPayload() {
       website: fields.website.value.trim() || null,
     },
   };
+}
+
+async function uploadImagesToFirebase() {
+  if (!currentSpaId) {
+    setUploadStatus("Save the spa to Firebase before uploading images.", "error");
+    return;
+  }
+
+  const urls = getImageUrls();
+  if (!urls.length) {
+    setUploadStatus("Add at least one image URL first.", "error");
+    return;
+  }
+
+  uploadImagesBtn.disabled = true;
+  saveSpaBtn.disabled = true;
+  setUploadStatus("Downloading, converting to WebP, and uploading…", "loading");
+
+  try {
+    const response = await fetch(
+      `/api/spas/${encodeURIComponent(currentSpaId)}/upload-images`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls }),
+      }
+    );
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to upload images");
+    }
+
+    populateEditor(result.spa, { mode: "firestore", spaId: currentSpaId });
+
+    const uploadedCount = result.uploaded?.length || 0;
+    const errorCount = result.errors?.length || 0;
+    if (errorCount) {
+      const details = result.errors
+        .map((item) => `${item.source_url}: ${item.error}`)
+        .join(" · ");
+      setUploadStatus(
+        `Uploaded ${uploadedCount} image(s). ${errorCount} failed: ${details}`,
+        "error"
+      );
+    } else {
+      setUploadStatus(
+        `Uploaded ${uploadedCount} image(s) to Firebase Storage as WebP.`,
+        "success"
+      );
+      setTimeout(clearUploadStatus, 3000);
+    }
+  } catch (error) {
+    setUploadStatus(error.message, "error");
+  } finally {
+    saveSpaBtn.disabled = false;
+    syncUploadImagesButton();
+  }
 }
 
 async function saveSpa() {
@@ -438,6 +612,7 @@ async function loadSpa(spaId) {
 
     clearStatus();
     populateEditor(result, { mode: "firestore", spaId });
+    syncSpaNav();
   } catch (error) {
     setStatus(error.message, "error");
   }
@@ -449,6 +624,11 @@ async function initEditor() {
       setStatus("Missing spa ID.", "error");
       return;
     }
+    try {
+      await loadSpaList();
+    } catch (error) {
+      setStatus(error.message, "error");
+    }
     await loadSpa(currentSpaId);
     return;
   }
@@ -457,6 +637,9 @@ async function initEditor() {
 }
 
 saveSpaBtn.addEventListener("click", saveSpa);
+uploadImagesBtn.addEventListener("click", uploadImagesToFirebase);
+spaPrevBtn.addEventListener("click", () => goToAdjacentSpa(-1));
+spaNextBtn.addEventListener("click", () => goToAdjacentSpa(1));
 
 addImageBtn.addEventListener("click", () => {
   addImage(newImageUrlInput.value);

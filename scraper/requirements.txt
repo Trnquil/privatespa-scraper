@@ -6,3 +6,4 @@ openai
 python-dotenv
 flask
 firebase-admin
+Pillow

@@ -11,6 +11,25 @@
       <header class="page-header">
         <a href="/" class="back-link">← Back to all spas</a>
         <h1 id="editor-title">Edit spa</h1>
+        <nav id="spa-nav" class="spa-nav hidden" aria-label="Spa navigation">
+          <button
+            type="button"
+            id="spa-prev-btn"
+            class="spa-nav-btn"
+            aria-label="Previous spa"
+          >
+            ‹
+          </button>
+          <span id="spa-nav-label" class="spa-nav-label"></span>
+          <button
+            type="button"
+            id="spa-next-btn"
+            class="spa-nav-btn"
+            aria-label="Next spa"
+          >
+            ›
+          </button>
+        </nav>
       </header>
 
       <div id="status" class="status hidden"></div>
@@ -81,6 +100,17 @@
               placeholder="https://example.com/image.jpg"
             />
             <button type="button" id="add-image-btn">Add image</button>
+          </div>
+          <div class="upload-images-row">
+            <button
+              type="button"
+              id="upload-images-btn"
+              class="upload-btn"
+              disabled
+            >
+              Convert & Upload
+            </button>
+            <span id="upload-status" class="upload-status hidden"></span>
           </div>
         </div>
 
