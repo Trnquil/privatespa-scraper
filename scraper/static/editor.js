@@ -39,6 +39,8 @@ let allSpas = [];
 
 const fields = {
   name: document.getElementById("name"),
+  slug: document.getElementById("slug"),
+  premium: document.getElementById("premium"),
   description: document.getElementById("description"),
   location: document.getElementById("location"),
   canton: document.getElementById("canton"),
@@ -505,6 +507,8 @@ function populateEditor(result, options = {}) {
   currentSpaId = options.spaId || result.id || currentSpaId;
 
   fields.name.value = data.name || "";
+  fields.slug.value = data.slug || "";
+  fields.premium.checked = Boolean(data.premium);
   fields.description.value = data.description || "";
   fields.location.value = data.location || "";
   fields.canton.value = data.canton || "";
@@ -559,6 +563,8 @@ function buildSpaPayload() {
       images: getImageUrls(),
       location: fields.location.value.trim() || null,
       name: fields.name.value.trim() || null,
+      premium: fields.premium.checked,
+      slug: fields.slug.value.trim() || null,
       website: fields.website.value.trim() || null,
     },
   };

@@ -88,6 +88,13 @@ button {
   margin-bottom: 1rem;
 }
 
+.spa-library-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
 .spa-library-header h2 {
   margin: 0;
   font-size: 1.15rem;
@@ -208,7 +215,45 @@ button {
   font-size: 0.98rem;
 }
 
-.spa-list-item span {
+.spa-list-item-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.spa-incomplete-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+  cursor: help;
+}
+
+.spa-premium-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: #1a6b4a;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  cursor: help;
+}
+
+.spa-list-item > span {
   font-size: 0.85rem;
   color: #666;
 }
@@ -310,6 +355,38 @@ label {
 .hint {
   font-weight: 400;
   color: #777;
+}
+
+.field-row-slug-premium {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+}
+
+.field-premium {
+  margin-bottom: 1rem;
+  width: auto;
+}
+
+.premium-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.65rem;
+  min-height: 2.65rem;
+  padding: 0;
+  border: 1px solid #ccd3da;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 400;
+  margin-bottom: 0;
+}
+
+.premium-control input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
 }
 
 input,

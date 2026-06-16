@@ -14,9 +14,17 @@ SPA_FIELDS = (
     "images",
     "location",
     "name",
+    "premium",
+    "slug",
     "thumbnail",
     "website",
 )
+
+DEFAULT_SPA_VALUES = {
+    "premium": False,
+}
+
+COMPLETENESS_FIELDS = tuple(field for field in SPA_FIELDS if field != "premium")
 
 
 def get_db():
@@ -37,6 +45,43 @@ def _normalize_coordinates(value):
     return None
 
 
+def _normalize_premium(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes"}
+    return bool(value) if value is not None else False
+
+
+def _is_field_filled(value, field: str) -> bool:
+    if field in ("amenities", "images"):
+        return bool(value)
+    if field == "coordinates":
+        return _normalize_coordinates(value) is not None
+    if field == "name":
+        text = (value or "").strip()
+        return bool(text) and text.lower() != "untitled"
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    return bool(value)
+
+
+def get_spa_completeness(data: dict) -> dict:
+    """Return whether a spa has all expected fields filled in."""
+    data = data or {}
+    missing_fields = [
+        field
+        for field in COMPLETENESS_FIELDS
+        if not _is_field_filled(data.get(field), field)
+    ]
+    return {
+        "complete": not missing_fields,
+        "missing_fields": missing_fields,
+    }
+
+
 def _spa_to_editor_payload(doc_id: str, data: dict) -> dict:
     data = data or {}
     return {
@@ -49,6 +94,8 @@ def _spa_to_editor_payload(doc_id: str, data: dict) -> dict:
             "images": list(data.get("images") or []),
             "location": data.get("location"),
             "name": data.get("name"),
+            "premium": _normalize_premium(data.get("premium")),
+            "slug": data.get("slug"),
             "thumbnail": data.get("thumbnail"),
             "website": data.get("website"),
         },
@@ -60,6 +107,7 @@ def list_spas() -> list[dict]:
     spas = []
     for doc in get_db().collection("spas").stream():
         data = doc.to_dict() or {}
+        completeness = get_spa_completeness(data)
         spas.append(
             {
                 "id": doc.id,
@@ -67,6 +115,9 @@ def list_spas() -> list[dict]:
                 "canton": data.get("canton"),
                 "location": data.get("location"),
                 "website": data.get("website"),
+                "premium": _normalize_premium(data.get("premium")),
+                "complete": completeness["complete"],
+                "missing_fields": completeness["missing_fields"],
             }
         )
     spas.sort(key=lambda spa: (spa.get("name") or "").lower())
@@ -101,6 +152,8 @@ def _build_spa_payload(data: dict) -> dict:
         value = data[field]
         if field == "coordinates":
             payload[field] = _normalize_coordinates(value)
+        elif field == "premium":
+            payload[field] = _normalize_premium(value)
         elif field in ("amenities", "images"):
             payload[field] = list(value or [])
         else:
@@ -110,7 +163,8 @@ def _build_spa_payload(data: dict) -> dict:
 
 def create_spa(data: dict) -> dict:
     """Create a new spa document with an auto-generated ID."""
-    payload = _build_spa_payload(data)
+    merged = {**DEFAULT_SPA_VALUES, **(data or {})}
+    payload = _build_spa_payload(merged)
     doc_ref = get_db().collection("spas").document()
     doc_ref.set(payload)
     return _spa_to_editor_payload(doc_ref.id, payload)

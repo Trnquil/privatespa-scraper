@@ -26,6 +26,7 @@ HTTP_TIMEOUT = 15.0
 MIN_TEXT_LENGTH = 500
 MAX_OPENAI_TEXT = 10_000
 RAW_PREVIEW_LENGTH = 300
+GENERIC_HOST_LABELS = {"www", "app", "m", "shop", "booking", "web", "mail"}
 
 
 def normalize_url(url: str) -> str:
@@ -71,6 +72,42 @@ def validate_url(url: str) -> str:
         raise ValueError(f"Unsafe URL: private or reserved IP '{host}'")
 
     return url
+
+
+def normalize_slug(value: str) -> str | None:
+    """Normalize a string into a URL-friendly slug."""
+    if not value:
+        return None
+    slug = value.lower().strip()
+    slug = re.sub(r"[^\w\-]+", "-", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug or None
+
+
+def extract_slug_from_url(url: str) -> str | None:
+    """Derive a slug from the spa website URL (e.g. hirschen.ch -> hirschen)."""
+    parsed = urlparse(normalize_url(url))
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return None
+
+    if host.startswith("www."):
+        host = host[4:]
+
+    labels = host.split(".")
+    if len(labels) >= 2:
+        slug = labels[0]
+        if slug in GENERIC_HOST_LABELS and len(labels) >= 3:
+            slug = labels[1]
+        normalized = normalize_slug(slug)
+        if normalized:
+            return normalized
+
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if path_parts:
+        return normalize_slug(path_parts[-1])
+
+    return None
 
 
 def fetch_with_httpx(url: str) -> str:
@@ -304,6 +341,8 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
             "images": image_urls,
             "location": result.get("location"),
             "name": result.get("name"),
+            "premium": False,
+            "slug": extract_slug_from_url(url),
             "website": url,
         }
     }
