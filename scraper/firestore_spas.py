@@ -5,26 +5,11 @@ from __future__ import annotations
 from firebase_admin import firestore
 
 from firebase_client import init_firebase
-
-SPA_FIELDS = (
-    "amenities",
-    "canton",
-    "coordinates",
-    "description",
-    "images",
-    "location",
-    "name",
-    "premium",
-    "slug",
-    "thumbnail",
-    "website",
-)
+from spa_schema import get_completeness_field_names, get_field_definition, get_spa_field_names
 
 DEFAULT_SPA_VALUES = {
     "premium": False,
 }
-
-COMPLETENESS_FIELDS = tuple(field for field in SPA_FIELDS if field != "premium")
 
 
 def get_db():
@@ -53,14 +38,37 @@ def _normalize_premium(value) -> bool:
     return bool(value) if value is not None else False
 
 
+def _normalize_price_from(value):
+    if value is None or value == "":
+        return None
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return None
+    if price < 0:
+        return None
+    return int(price) if price.is_integer() else price
+
+
 def _is_field_filled(value, field: str) -> bool:
     if field in ("amenities", "images"):
         return bool(value)
     if field == "coordinates":
         return _normalize_coordinates(value) is not None
+    if field == "price_from":
+        return _normalize_price_from(value) is not None
     if field == "name":
         text = (value or "").strip()
         return bool(text) and text.lower() != "untitled"
+    definition = get_field_definition(field)
+    if definition:
+        field_type = definition.get("type")
+        if field_type == "boolean":
+            return True
+        if field_type == "array":
+            return bool(value)
+        if field_type == "number":
+            return _normalize_custom_number(value) is not None
     if value is None:
         return False
     if isinstance(value, str):
@@ -68,12 +76,73 @@ def _is_field_filled(value, field: str) -> bool:
     return bool(value)
 
 
+def _normalize_custom_number(value):
+    if value is None or value == "":
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return int(number) if number.is_integer() else number
+
+
+def _normalize_custom_value(value, field_type: str):
+    if field_type == "boolean":
+        return _normalize_premium(value)
+    if field_type == "number":
+        return _normalize_custom_number(value)
+    if field_type == "array":
+        if isinstance(value, str):
+            return [line.strip() for line in value.splitlines() if line.strip()]
+        return list(value or [])
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _serialize_field_value(name: str, value):
+    definition = get_field_definition(name)
+    if not definition:
+        return value
+    field_type = definition.get("type")
+    if field_type == "coordinates":
+        return _normalize_coordinates(value)
+    if field_type == "boolean" or name == "premium":
+        return _normalize_premium(value)
+    if field_type == "number" or name == "price_from":
+        if name == "price_from":
+            return _normalize_price_from(value)
+        return _normalize_custom_number(value)
+    if field_type == "array" or name in ("amenities", "images"):
+        return list(value or [])
+    return value
+
+
+def _editor_field_value(name: str, value):
+    definition = get_field_definition(name)
+    if not definition:
+        return value
+    field_type = definition.get("type")
+    if field_type == "coordinates":
+        return _normalize_coordinates(value)
+    if field_type == "boolean" or name == "premium":
+        return _normalize_premium(value)
+    if field_type == "number" or name == "price_from":
+        if name == "price_from":
+            return _normalize_price_from(value)
+        return _normalize_custom_number(value)
+    if field_type == "array" or name in ("amenities", "images"):
+        return list(value or [])
+    return value
+
+
 def get_spa_completeness(data: dict) -> dict:
     """Return whether a spa has all expected fields filled in."""
     data = data or {}
     missing_fields = [
         field
-        for field in COMPLETENESS_FIELDS
+        for field in get_completeness_field_names()
         if not _is_field_filled(data.get(field), field)
     ]
     return {
@@ -84,22 +153,10 @@ def get_spa_completeness(data: dict) -> dict:
 
 def _spa_to_editor_payload(doc_id: str, data: dict) -> dict:
     data = data or {}
-    return {
-        "id": doc_id,
-        "data": {
-            "amenities": list(data.get("amenities") or []),
-            "canton": data.get("canton"),
-            "coordinates": _normalize_coordinates(data.get("coordinates")),
-            "description": data.get("description"),
-            "images": list(data.get("images") or []),
-            "location": data.get("location"),
-            "name": data.get("name"),
-            "premium": _normalize_premium(data.get("premium")),
-            "slug": data.get("slug"),
-            "thumbnail": data.get("thumbnail"),
-            "website": data.get("website"),
-        },
-    }
+    payload_data = {}
+    for field in get_spa_field_names():
+        payload_data[field] = _editor_field_value(field, data.get(field))
+    return {"id": doc_id, "data": payload_data}
 
 
 def list_spas() -> list[dict]:
@@ -115,6 +172,7 @@ def list_spas() -> list[dict]:
                 "canton": data.get("canton"),
                 "location": data.get("location"),
                 "website": data.get("website"),
+                "owner": (data.get("owner") or "").strip() or None,
                 "premium": _normalize_premium(data.get("premium")),
                 "complete": completeness["complete"],
                 "missing_fields": completeness["missing_fields"],
@@ -146,18 +204,10 @@ def _build_spa_payload(data: dict) -> dict:
         raise ValueError("Spa data must be an object")
 
     payload = {}
-    for field in SPA_FIELDS:
+    for field in get_spa_field_names():
         if field not in data:
             continue
-        value = data[field]
-        if field == "coordinates":
-            payload[field] = _normalize_coordinates(value)
-        elif field == "premium":
-            payload[field] = _normalize_premium(value)
-        elif field in ("amenities", "images"):
-            payload[field] = list(value or [])
-        else:
-            payload[field] = value
+        payload[field] = _serialize_field_value(field, data[field])
     return payload
 
 
@@ -183,3 +233,19 @@ def update_spa(spa_id: str, data: dict) -> dict:
 def update_spa_thumbnail(spa_id: str, thumbnail_url: str) -> None:
     """Persist the spa thumbnail URL in Firestore."""
     get_db().collection("spas").document(spa_id).update({"thumbnail": thumbnail_url})
+
+
+def delete_spa(spa_id: str) -> dict:
+    """Delete a spa document and all associated Firebase Storage files."""
+    if not spa_id:
+        raise ValueError("Spa ID is required")
+
+    doc_ref = get_db().collection("spas").document(spa_id)
+    if not doc_ref.get().exists:
+        raise ValueError("Spa not found")
+
+    from storage_images import delete_spa_storage
+
+    deleted_files = delete_spa_storage(spa_id)
+    doc_ref.delete()
+    return {"id": spa_id, "deleted_storage_files": deleted_files}

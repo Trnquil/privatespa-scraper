@@ -271,6 +271,18 @@ def _normalize_coordinates(value) -> list[float] | None:
     return [lat, lng]
 
 
+def _normalize_price_from(value):
+    if value is None or value == "":
+        return None
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return None
+    if price < 0:
+        return None
+    return int(price) if price.is_integer() else price
+
+
 def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> dict:
     """Send extracted text to OpenAI and return structured spa data."""
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -285,7 +297,7 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
     system_prompt = (
         "You extract spa or wellness venue information from website text. "
         "Return ONLY valid JSON with exactly these keys: "
-        "name, description, amenities, location, canton, coordinates. "
+        "name, description, amenities, location, canton, coordinates, price_from. "
         "name: official venue or offer name, or null if unclear. "
         "description: 1-3 polished sentences in the same language as the website text, "
         "factual and based ONLY on the provided text. "
@@ -298,6 +310,8 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
         "canton: Swiss canton name if identifiable from the text, otherwise null. "
         "coordinates: [latitude, longitude] ONLY if explicitly present in the text "
         "(e.g. geo meta tags or map data), otherwise null. "
+        "price_from: lowest starting price as a number in CHF if explicitly mentioned "
+        "on the page (e.g. 'ab CHF 150' -> 150), otherwise null. "
         "Do NOT invent amenities, prices, locations, coordinates, or services. "
         "Return null for description if there is not enough information."
     )
@@ -342,6 +356,7 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
             "location": result.get("location"),
             "name": result.get("name"),
             "premium": False,
+            "price_from": _normalize_price_from(result.get("price_from")),
             "slug": extract_slug_from_url(url),
             "website": url,
         }

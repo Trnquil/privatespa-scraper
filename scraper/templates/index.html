@@ -38,6 +38,9 @@
             <button type="button" id="create-spa-btn" class="save-btn">
               New spa
             </button>
+            <button type="button" id="open-schema-btn" class="secondary-btn">
+              Spa schema
+            </button>
             <button type="button" id="refresh-spas-btn" class="secondary-btn">
               Refresh
             </button>
@@ -54,6 +57,61 @@
         <div id="spa-list-status" class="status hidden"></div>
         <div id="spa-list" class="spa-list"></div>
       </section>
+    </div>
+
+    <div id="schema-modal" class="schema-modal hidden" aria-hidden="true">
+      <div class="schema-modal-dialog" role="dialog" aria-modal="true">
+        <div class="schema-header">
+          <h2>Spa schema</h2>
+          <div class="schema-header-actions">
+            <button type="button" id="refresh-schema-btn" class="secondary-btn">
+              Refresh
+            </button>
+            <button
+              type="button"
+              id="close-schema-btn"
+              class="schema-close-btn"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+        <p class="schema-intro">
+          Define additional fields for every spa. Built-in fields are always present;
+          custom fields appear on each spa editor.
+        </p>
+        <div id="schema-status" class="status hidden"></div>
+        <div id="schema-fields" class="schema-fields"></div>
+
+        <div id="discovered-fields" class="discovered-fields hidden">
+          <h3>Found in Firestore but not in schema</h3>
+          <div id="discovered-fields-list" class="schema-fields"></div>
+        </div>
+
+        <form id="schema-add-form" class="schema-add-form">
+          <input
+            type="text"
+            id="schema-field-name"
+            placeholder="field_name"
+            autocomplete="off"
+            required
+          />
+          <select id="schema-field-type" required>
+            <option value="string">String</option>
+            <option value="number">Number</option>
+            <option value="boolean">Boolean</option>
+            <option value="array">List (one per line)</option>
+          </select>
+          <input
+            type="text"
+            id="schema-field-label"
+            placeholder="Label (optional)"
+            autocomplete="off"
+          />
+          <button type="submit" id="schema-add-btn">Add field</button>
+        </form>
+      </div>
     </div>
 
     <script src="/static/home.js"></script>

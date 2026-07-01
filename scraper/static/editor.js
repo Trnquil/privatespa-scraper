@@ -1,5 +1,12 @@
 const statusEl = document.getElementById("status");
 const saveSpaBtn = document.getElementById("save-spa-btn");
+const rescrapeMissingBtn = document.getElementById("rescrape-missing-btn");
+const deleteSpaBtn = document.getElementById("delete-spa-btn");
+const deleteListingRowEl = document.getElementById("delete-listing-row");
+const deleteModalEl = document.getElementById("delete-modal");
+const deleteConfirmInput = document.getElementById("delete-confirm-input");
+const deleteConfirmBtn = document.getElementById("delete-confirm-btn");
+const deleteCancelBtn = document.getElementById("delete-cancel-btn");
 const uploadImagesBtn = document.getElementById("upload-images-btn");
 const uploadStatusEl = document.getElementById("upload-status");
 const generateThumbnailBtn = document.getElementById("generate-thumbnail-btn");
@@ -26,6 +33,8 @@ const thumbnailFieldEl = document.getElementById("thumbnail-field");
 const thumbnailImgEl = document.getElementById("thumbnail-img");
 const thumbnailEmptyEl = document.getElementById("thumbnail-empty");
 const thumbnailMetaEl = document.getElementById("thumbnail-meta");
+const customFieldsEl = document.getElementById("custom-fields");
+const customFieldsListEl = document.getElementById("custom-fields-list");
 
 const editorConfig = JSON.parse(
   document.getElementById("editor-config").textContent
@@ -36,6 +45,8 @@ let currentSpaId = editorConfig.spaId || null;
 let editorMode = editorConfig.mode || "firestore";
 let draggedImageCard = null;
 let allSpas = [];
+let customSchemaFields = [];
+let customFieldInputs = {};
 
 const fields = {
   name: document.getElementById("name"),
@@ -45,11 +56,47 @@ const fields = {
   location: document.getElementById("location"),
   canton: document.getElementById("canton"),
   website: document.getElementById("website"),
+  priceFrom: document.getElementById("price-from"),
   latitude: document.getElementById("latitude"),
   longitude: document.getElementById("longitude"),
   amenities: document.getElementById("amenities"),
   rawPreview: document.getElementById("raw-preview"),
 };
+
+function syncRescrapeMissingButton() {
+  if (!rescrapeMissingBtn) return;
+  const show = editorMode === "firestore" && Boolean(currentSpaId);
+  const hasWebsite = fields.website.value.trim().length > 0;
+  rescrapeMissingBtn.classList.toggle("hidden", !show);
+  rescrapeMissingBtn.disabled = !hasWebsite;
+}
+
+function syncDeleteListingButton() {
+  if (!deleteListingRowEl) return;
+  const show = editorMode === "firestore" && Boolean(currentSpaId);
+  deleteListingRowEl.classList.toggle("hidden", !show);
+}
+
+function openDeleteModal() {
+  deleteConfirmInput.value = "";
+  deleteConfirmBtn.disabled = true;
+  deleteModalEl.classList.remove("hidden");
+  deleteModalEl.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  deleteConfirmInput.focus();
+}
+
+function closeDeleteModal() {
+  deleteModalEl.classList.add("hidden");
+  deleteModalEl.setAttribute("aria-hidden", "true");
+  deleteConfirmInput.value = "";
+  deleteConfirmBtn.disabled = true;
+  document.body.classList.remove("modal-open");
+}
+
+function syncDeleteConfirmButton() {
+  deleteConfirmBtn.disabled = deleteConfirmInput.value.trim() !== "DELETE";
+}
 
 function setStatus(message, type) {
   statusEl.textContent = message;
@@ -501,6 +548,133 @@ function setMetaTag(el, text) {
   el.classList.toggle("hidden", !value);
 }
 
+function setMetaLink(el, url) {
+  const value = (url || "").trim();
+  el.innerHTML = "";
+  el.classList.toggle("hidden", !value);
+  if (!value) return;
+
+  const link = document.createElement("a");
+  link.href = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  link.textContent = value;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  el.appendChild(link);
+}
+
+function renderCustomFieldInputs() {
+  customFieldInputs = {};
+  customFieldsListEl.innerHTML = "";
+
+  if (!customSchemaFields.length) {
+    customFieldsEl.classList.add("hidden");
+    return;
+  }
+
+  customFieldsEl.classList.remove("hidden");
+
+  for (const field of customSchemaFields) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "field";
+
+    const label = document.createElement("label");
+    label.htmlFor = `custom-${field.name}`;
+    label.textContent = field.label || field.name;
+    if (field.type === "array") {
+      const hint = document.createElement("span");
+      hint.className = "hint";
+      hint.textContent = " (one per line)";
+      label.appendChild(hint);
+    }
+    wrapper.appendChild(label);
+
+    let input;
+    if (field.type === "boolean") {
+      input = document.createElement("input");
+      input.type = "checkbox";
+      input.id = `custom-${field.name}`;
+      wrapper.classList.add("field-boolean");
+      wrapper.appendChild(input);
+    } else if (field.type === "array") {
+      input = document.createElement("textarea");
+      input.id = `custom-${field.name}`;
+      input.rows = 4;
+      wrapper.appendChild(input);
+    } else {
+      input = document.createElement("input");
+      input.id = `custom-${field.name}`;
+      input.type = field.type === "number" ? "number" : "text";
+      if (field.type === "number") {
+        input.step = "any";
+      }
+      wrapper.appendChild(input);
+    }
+
+    customFieldInputs[field.name] = input;
+    customFieldsListEl.appendChild(wrapper);
+  }
+}
+
+async function loadSchemaFields() {
+  const response = await fetch("/api/schema");
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.error || "Failed to load schema");
+  }
+  customSchemaFields = (result.fields || []).filter((field) => !field.builtin);
+  renderCustomFieldInputs();
+}
+
+function populateCustomFields(data) {
+  for (const field of customSchemaFields) {
+    const input = customFieldInputs[field.name];
+    if (!input) continue;
+
+    const value = data[field.name];
+    if (field.type === "boolean") {
+      input.checked = Boolean(value);
+    } else if (field.type === "array") {
+      input.value = arrayToLines(value);
+    } else if (field.type === "number") {
+      input.value = value === null || value === undefined ? "" : value;
+    } else {
+      input.value = value ?? "";
+    }
+  }
+}
+
+function readCustomFieldValues() {
+  const values = {};
+  for (const field of customSchemaFields) {
+    const input = customFieldInputs[field.name];
+    if (!input) continue;
+
+    if (field.type === "boolean") {
+      values[field.name] = input.checked;
+      continue;
+    }
+
+    if (field.type === "array") {
+      values[field.name] = linesToArray(input.value);
+      continue;
+    }
+
+    const raw = input.value.trim();
+    if (field.type === "number") {
+      if (!raw) {
+        values[field.name] = null;
+      } else {
+        const parsed = parseFloat(raw);
+        values[field.name] = Number.isNaN(parsed) ? null : parsed;
+      }
+      continue;
+    }
+
+    values[field.name] = raw || null;
+  }
+  return values;
+}
+
 function populateEditor(result, options = {}) {
   const data = result.data || {};
   editorMode = options.mode || editorMode;
@@ -513,16 +687,21 @@ function populateEditor(result, options = {}) {
   fields.location.value = data.location || "";
   fields.canton.value = data.canton || "";
   fields.website.value = data.website || "";
+  fields.priceFrom.value =
+    data.price_from === null || data.price_from === undefined
+      ? ""
+      : data.price_from;
   fields.latitude.value = data.coordinates?.[0] ?? "";
   fields.longitude.value = data.coordinates?.[1] ?? "";
   fields.amenities.value = arrayToLines(data.amenities);
   fields.rawPreview.value = result.raw_text_preview || "";
+  populateCustomFields(data);
 
   if (editorMode === "firestore") {
     editorTitleEl.textContent = data.name || "Edit spa";
     setMetaTag(metaModeEl, `Firebase ID: ${currentSpaId}`);
     setMetaTag(metaPlaywrightEl, "");
-    setMetaTag(metaSourceEl, data.website || "");
+    setMetaLink(metaSourceEl, data.website || "");
     rawPreviewFieldEl.classList.add("hidden");
   } else {
     editorTitleEl.textContent = data.name || "New scraped spa";
@@ -531,7 +710,7 @@ function populateEditor(result, options = {}) {
       metaPlaywrightEl,
       result.used_playwright ? "Fetched with Playwright" : "Fetched with httpx"
     );
-    setMetaTag(metaSourceEl, result.source_url || "");
+    setMetaLink(metaSourceEl, result.source_url || "");
     rawPreviewFieldEl.classList.remove("hidden");
   }
 
@@ -539,6 +718,8 @@ function populateEditor(result, options = {}) {
   renderThumbnail(data.thumbnail);
   newImageUrlInput.value = "";
   syncUploadImagesButton();
+  syncRescrapeMissingButton();
+  syncDeleteListingButton();
 }
 
 function buildSpaPayload() {
@@ -554,6 +735,15 @@ function buildSpaPayload() {
     }
   }
 
+  const priceFromRaw = fields.priceFrom.value.trim();
+  let price_from = null;
+  if (priceFromRaw) {
+    const parsed = parseFloat(priceFromRaw);
+    if (!Number.isNaN(parsed) && parsed >= 0) {
+      price_from = parsed;
+    }
+  }
+
   return {
     data: {
       amenities: linesToArray(fields.amenities.value),
@@ -564,8 +754,10 @@ function buildSpaPayload() {
       location: fields.location.value.trim() || null,
       name: fields.name.value.trim() || null,
       premium: fields.premium.checked,
+      price_from,
       slug: fields.slug.value.trim() || null,
       website: fields.website.value.trim() || null,
+      ...readCustomFieldValues(),
     },
   };
 }
@@ -672,6 +864,86 @@ async function uploadImagesToFirebase() {
   }
 }
 
+async function rescrapeMissingFields() {
+  if (!currentSpaId) {
+    setStatus("Save the spa to Firebase before rescraping.", "error");
+    return;
+  }
+
+  const website = fields.website.value.trim();
+  if (!website) {
+    setStatus("Add a website URL first.", "error");
+    return;
+  }
+
+  rescrapeMissingBtn.disabled = true;
+  saveSpaBtn.disabled = true;
+  setStatus("Scraping missing fields from website…", "loading");
+
+  try {
+    const response = await fetch(
+      `/api/spas/${encodeURIComponent(currentSpaId)}/rescrape-missing`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildSpaPayload()),
+      }
+    );
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to rescrape missing fields");
+    }
+
+    populateEditor(result.spa, { mode: "firestore", spaId: currentSpaId });
+
+    const filled = result.filled_fields || [];
+    if (!filled.length) {
+      setStatus("No missing fields could be filled from the website.", "loading");
+    } else {
+      const playwrightNote = result.used_playwright ? " (via Playwright)" : "";
+      setStatus(`Filled: ${filled.join(", ")}${playwrightNote}`, "loading");
+    }
+    setTimeout(clearStatus, 4000);
+  } catch (error) {
+    setStatus(error.message, "error");
+  } finally {
+    saveSpaBtn.disabled = false;
+    syncRescrapeMissingButton();
+  }
+}
+
+async function deleteListing() {
+  if (!currentSpaId) return;
+
+  deleteConfirmBtn.disabled = true;
+  deleteCancelBtn.disabled = true;
+  setStatus("Deleting listing and storage files…", "loading");
+
+  try {
+    const response = await fetch(
+      `/api/spas/${encodeURIComponent(currentSpaId)}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: deleteConfirmInput.value.trim() }),
+      }
+    );
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to delete listing");
+    }
+
+    closeDeleteModal();
+    window.location.href = "/";
+  } catch (error) {
+    closeDeleteModal();
+    setStatus(error.message, "error");
+    syncDeleteConfirmButton();
+  } finally {
+    deleteCancelBtn.disabled = false;
+  }
+}
+
 async function saveSpa() {
   saveSpaBtn.disabled = true;
   setStatus("Saving to Firebase…", "loading");
@@ -745,6 +1017,13 @@ async function loadSpa(spaId) {
 }
 
 async function initEditor() {
+  try {
+    await loadSchemaFields();
+  } catch (error) {
+    setStatus(error.message, "error");
+    return;
+  }
+
   if (editorMode === "firestore") {
     if (!currentSpaId) {
       setStatus("Missing spa ID.", "error");
@@ -763,6 +1042,15 @@ async function initEditor() {
 }
 
 saveSpaBtn.addEventListener("click", saveSpa);
+rescrapeMissingBtn.addEventListener("click", rescrapeMissingFields);
+deleteSpaBtn.addEventListener("click", openDeleteModal);
+deleteCancelBtn.addEventListener("click", closeDeleteModal);
+deleteConfirmInput.addEventListener("input", syncDeleteConfirmButton);
+deleteConfirmBtn.addEventListener("click", deleteListing);
+deleteModalEl.addEventListener("click", (event) => {
+  if (event.target === deleteModalEl) closeDeleteModal();
+});
+fields.website.addEventListener("input", syncRescrapeMissingButton);
 uploadImagesBtn.addEventListener("click", uploadImagesToFirebase);
 generateThumbnailBtn.addEventListener("click", generateThumbnail);
 spaPrevBtn.addEventListener("click", () => goToAdjacentSpa(-1));
@@ -801,6 +1089,11 @@ lightboxEl.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (!deleteModalEl.classList.contains("hidden") && event.key === "Escape") {
+    closeDeleteModal();
+    return;
+  }
+
   if (lightboxEl.classList.contains("hidden")) return;
 
   if (event.key === "Escape") {

@@ -75,6 +75,91 @@ button {
   cursor: not-allowed;
 }
 
+.delete-btn {
+  padding: 0.75rem 1.25rem;
+  background: #b42318;
+  color: #fff;
+}
+
+.delete-btn:hover:not(:disabled) {
+  background: #912018;
+}
+
+.delete-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.delete-listing-row {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.delete-listing-btn {
+  padding: 0.65rem 1.1rem;
+  background: #fecaca;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.delete-listing-btn:hover {
+  background: #fca5a5;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.delete-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.delete-modal.hidden {
+  display: none;
+}
+
+.delete-modal-dialog {
+  width: min(100%, 420px);
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+}
+
+.delete-modal-dialog h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+}
+
+.delete-modal-dialog p {
+  margin: 0 0 0.75rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.delete-modal-hint {
+  font-size: 0.9rem;
+}
+
+.delete-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
 .spa-library,
 .scrape-section {
   margin-bottom: 2rem;
@@ -247,10 +332,31 @@ button {
   background: #1a6b4a;
   color: #fff;
   font-size: 0.62rem;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1;
   flex-shrink: 0;
+}
+
+.spa-owner-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: #475569;
+  flex-shrink: 0;
   cursor: help;
+}
+
+.spa-owner-icon::before {
+  content: "";
+  display: block;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0.34rem 0 0 #fff;
 }
 
 .spa-list-item > span {
@@ -333,6 +439,15 @@ button {
   background: #f1f5f9;
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
+}
+
+.meta a {
+  color: #1a6b4a;
+  text-decoration: none;
+}
+
+.meta a:hover {
+  text-decoration: underline;
 }
 
 .field {
@@ -767,6 +882,221 @@ body.lightbox-open {
   background: rgba(140, 25, 18, 0.95);
 }
 
+.schema-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.schema-modal.hidden {
+  display: none;
+}
+
+.schema-modal-dialog {
+  width: min(100%, 720px);
+  max-height: min(90vh, 860px);
+  overflow: auto;
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+}
+
+.schema-section {
+  margin-bottom: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.schema-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.schema-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.schema-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 8px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.schema-close-btn:hover {
+  background: #cbd5e1;
+}
+
+.schema-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.schema-intro {
+  margin: 0 0 1rem;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.schema-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.schema-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.schema-field-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+
+.schema-field-name {
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: #e2e8f0;
+  font-size: 0.85rem;
+}
+
+.schema-field-label {
+  font-weight: 600;
+}
+
+.schema-field-type {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.schema-field-hint {
+  font-size: 0.8rem;
+  color: #b45309;
+}
+
+.schema-field-actions {
+  flex-shrink: 0;
+}
+
+.schema-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.schema-badge-builtin {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.schema-delete-btn {
+  padding: 0.35rem 0.7rem;
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.schema-delete-btn:hover {
+  background: #fecaca;
+}
+
+.schema-add-form {
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.schema-add-form input,
+.schema-add-form select {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #ccd3da;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.schema-add-form button {
+  padding: 0.65rem 1rem;
+  background: #2563eb;
+  color: #fff;
+}
+
+.schema-add-form button:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.schema-empty {
+  margin: 0;
+  color: #64748b;
+}
+
+.discovered-fields {
+  margin-bottom: 1rem;
+}
+
+.discovered-fields h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  color: #475569;
+}
+
+.custom-fields {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.custom-fields-title {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+}
+
+.field-boolean {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.field-boolean label {
+  margin-bottom: 0;
+}
+
 @media (max-width: 640px) {
   .url-form {
     flex-direction: column;
@@ -777,6 +1107,15 @@ body.lightbox-open {
   }
 
   .editor-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .schema-add-form {
+    grid-template-columns: 1fr;
+  }
+
+  .schema-field-row {
     flex-direction: column;
     align-items: stretch;
   }

@@ -111,6 +111,20 @@ def _upload_webp(bucket, blob_path: str, webp_bytes: bytes) -> str:
     return _download_url(bucket.name, blob_path, token)
 
 
+def delete_spa_storage(spa_id: str) -> list[str]:
+    """Delete all Firebase Storage files under spas/{spa_id}/."""
+    if not spa_id:
+        raise ValueError("Spa ID is required")
+
+    bucket = _get_bucket()
+    prefix = f"{STORAGE_PREFIX}/{spa_id}/"
+    deleted: list[str] = []
+    for blob in bucket.list_blobs(prefix=prefix):
+        blob.delete()
+        deleted.append(blob.name)
+    return deleted
+
+
 def get_stored_thumbnail_url(spa_id: str) -> str | None:
     """Return the Firebase Storage download URL for an existing thumbnail."""
     bucket = _get_bucket()

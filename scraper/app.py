@@ -5,9 +5,11 @@ import httpx
 from flask import Flask, jsonify, render_template, request
 
 from firebase_client import init_firebase
-from firestore_spas import create_spa, get_spa, list_spas, update_spa
+from firestore_spas import create_spa, delete_spa, get_db, get_spa, list_spas, update_spa
 from image_info import get_image_info
+from rescrape import rescrape_missing_fields
 from scrape_spa import scrape_url
+from spa_schema import add_custom_field, get_schema_payload, remove_custom_field
 from storage_images import (
     generate_all_spa_thumbnails,
     generate_spa_thumbnail,
@@ -15,8 +17,6 @@ from storage_images import (
 )
 
 app = Flask(__name__)
-
-init_firebase()
 
 
 @app.get("/")
@@ -42,9 +42,48 @@ def edit_scrape_page():
 
 @app.get("/api/health")
 def health():
-    """Confirm the app and Firebase connection are ready."""
-    init_firebase()
-    return jsonify({"status": "ok", "firebase": "connected"})
+    """Confirm the app can read from Firestore."""
+    try:
+        init_firebase()
+        get_db().collection("spas").limit(1).get()
+        return jsonify({"status": "ok", "firebase": "connected"})
+    except Exception as e:
+        return jsonify({"status": "error", "firebase": str(e)}), 503
+
+
+@app.get("/api/schema")
+def api_get_schema():
+    try:
+        return jsonify(get_schema_payload())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/schema")
+def api_add_schema_field():
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    field_type = (body.get("type") or "string").strip()
+    label = (body.get("label") or "").strip() or None
+
+    try:
+        field = add_custom_field(name, field_type, label)
+        return jsonify({"field": field, **get_schema_payload()}), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.delete("/api/schema/<field_name>")
+def api_remove_schema_field(field_name):
+    try:
+        result = remove_custom_field(field_name)
+        return jsonify({**result, **get_schema_payload()})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.get("/api/spas")
@@ -123,6 +162,49 @@ def api_image_info():
         return jsonify({"error": str(e)}), 500
 
 
+@app.delete("/api/spas/<spa_id>")
+def api_delete_spa(spa_id):
+    body = request.get_json(silent=True) or {}
+    confirm = (body.get("confirm") or "").strip()
+    if confirm != "DELETE":
+        return jsonify({"error": 'Type DELETE to confirm deletion'}), 400
+
+    try:
+        result = delete_spa(spa_id)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/spas/<spa_id>/rescrape-missing")
+def api_rescrape_missing_fields(spa_id):
+    body = request.get_json(silent=True) or {}
+    data = body.get("data")
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must include a data object"}), 400
+
+    spa = get_spa(spa_id)
+    if not spa:
+        return jsonify({"error": "Spa not found"}), 404
+
+    try:
+        result = rescrape_missing_fields(data)
+        return jsonify(
+            {
+                **result,
+                "spa": {"id": spa_id, "data": result["data"]},
+            }
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except EnvironmentError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.post("/api/spas/<spa_id>/generate-thumbnail")
 def api_generate_spa_thumbnail(spa_id):
     body = request.get_json(silent=True) or {}
@@ -178,4 +260,7 @@ if __name__ == "__main__":
     import os
 
     port = int(os.environ.get("PORT", "5001"))
-    app.run(debug=True, host="127.0.0.1", port=port)
+    init_firebase()
+    # Firestore uses gRPC; Flask's debug reloader forks after init and can deadlock.
+    use_reloader = os.environ.get("FLASK_USE_RELOADER", "").lower() in {"1", "true", "yes"}
+    app.run(debug=True, host="127.0.0.1", port=port, use_reloader=use_reloader)
