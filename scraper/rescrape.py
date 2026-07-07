@@ -28,7 +28,9 @@ def _missing_scrapeable_fields(data: dict) -> list[str]:
     ]
 
 
-def merge_scraped_missing_fields(current: dict, scraped: dict, source_url: str) -> tuple[dict, list[str]]:
+def merge_scraped_missing_fields(
+    current: dict, scraped: dict, source_url: str
+) -> tuple[dict, list[str]]:
     """Fill empty fields in current data with scraped values."""
     merged = dict(current or {})
     scraped = scraped or {}

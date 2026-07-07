@@ -73,6 +73,17 @@
           </div>
         </div>
 
+        <div class="field-row">
+          <div class="field">
+            <label for="owner">Owner</label>
+            <input type="text" id="owner" />
+          </div>
+          <div class="field">
+            <label for="contact">Contact</label>
+            <input type="email" id="contact" placeholder="info@example.ch" autocomplete="email" />
+          </div>
+        </div>
+
         <div class="field">
           <label for="description">Description</label>
           <textarea id="description" rows="4"></textarea>
@@ -175,11 +186,6 @@
           <textarea id="raw-preview" rows="4" readonly></textarea>
         </div>
 
-        <div id="custom-fields" class="custom-fields hidden">
-          <h2 class="custom-fields-title">Additional fields</h2>
-          <div id="custom-fields-list"></div>
-        </div>
-
         <div id="delete-listing-row" class="delete-listing-row hidden">
           <button type="button" id="delete-spa-btn" class="delete-listing-btn">
             Delete listing
@@ -232,8 +238,8 @@
       <div class="delete-modal-dialog" role="dialog" aria-modal="true">
         <h2>Delete listing</h2>
         <p>
-          This permanently deletes the spa from Firestore and removes all uploaded
-          images and thumbnails from Firebase Storage.
+          This permanently deletes the spa from Firestore and removes all
+          uploaded images and thumbnails from Firebase Storage.
         </p>
         <p class="delete-modal-hint">
           Type <strong>DELETE</strong> to confirm.

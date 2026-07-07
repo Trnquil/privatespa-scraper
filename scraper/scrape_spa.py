@@ -151,7 +151,9 @@ def extract_image_urls(soup: BeautifulSoup, base_url: str) -> list[str]:
             seen.add(absolute)
             urls.append(absolute)
 
-    for meta in soup.find_all("meta", attrs={"property": re.compile(r"^og:image", re.I)}):
+    for meta in soup.find_all(
+        "meta", attrs={"property": re.compile(r"^og:image", re.I)}
+    ):
         add_url(meta.get("content"))
 
     for img in soup.find_all("img"):
@@ -222,7 +224,9 @@ def extract_address_hints(soup: BeautifulSoup) -> list[str]:
 
 def extract_visible_text(soup: BeautifulSoup) -> str:
     """Extract useful visible text from a parsed HTML document."""
-    for tag in soup.find_all(["script", "style", "nav", "footer", "header", "noscript", "svg", "form"]):
+    for tag in soup.find_all(
+        ["script", "style", "nav", "footer", "header", "noscript", "svg", "form"]
+    ):
         tag.decompose()
 
     parts: list[str] = []
@@ -240,7 +244,9 @@ def extract_visible_text(soup: BeautifulSoup) -> str:
         if not content:
             continue
         if any(k in name for k in ("geo", "latitude", "longitude", "icbm")):
-            parts.append(f"{meta.get('name') or meta.get('property')}: {content.strip()}")
+            parts.append(
+                f"{meta.get('name') or meta.get('property')}: {content.strip()}"
+            )
 
     for tag in soup.find_all(["h1", "h2", "h3", "p", "li"]):
         text = tag.get_text(separator=" ", strip=True)
@@ -414,7 +420,12 @@ def scrape_url(url: str) -> dict:
             address_hints = extract_address_hints(soup)
             text = extract_visible_text(soup)
             if address_hints:
-                text = "Addresses found on page:\n" + "\n".join(address_hints) + "\n\n" + text
+                text = (
+                    "Addresses found on page:\n"
+                    + "\n".join(address_hints)
+                    + "\n\n"
+                    + text
+                )
         except Exception as e:
             raise RuntimeError(f"Playwright fetch failed: {e}") from e
 

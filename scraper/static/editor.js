@@ -33,11 +33,9 @@ const thumbnailFieldEl = document.getElementById("thumbnail-field");
 const thumbnailImgEl = document.getElementById("thumbnail-img");
 const thumbnailEmptyEl = document.getElementById("thumbnail-empty");
 const thumbnailMetaEl = document.getElementById("thumbnail-meta");
-const customFieldsEl = document.getElementById("custom-fields");
-const customFieldsListEl = document.getElementById("custom-fields-list");
 
 const editorConfig = JSON.parse(
-  document.getElementById("editor-config").textContent
+  document.getElementById("editor-config").textContent,
 );
 
 let lightboxIndex = 0;
@@ -45,13 +43,13 @@ let currentSpaId = editorConfig.spaId || null;
 let editorMode = editorConfig.mode || "firestore";
 let draggedImageCard = null;
 let allSpas = [];
-let customSchemaFields = [];
-let customFieldInputs = {};
 
 const fields = {
   name: document.getElementById("name"),
   slug: document.getElementById("slug"),
   premium: document.getElementById("premium"),
+  owner: document.getElementById("owner"),
+  contact: document.getElementById("contact"),
   description: document.getElementById("description"),
   location: document.getElementById("location"),
   canton: document.getElementById("canton"),
@@ -319,7 +317,7 @@ function syncLightboxIndexAfterReorder() {
   const cards = getImageCards();
   const currentUrl = lightboxImg.src;
   const nextIndex = cards.findIndex(
-    (card) => getImageUrlFromCard(card) === currentUrl
+    (card) => getImageUrlFromCard(card) === currentUrl,
   );
   if (nextIndex >= 0) {
     lightboxIndex = nextIndex;
@@ -384,7 +382,7 @@ function loadImageMeta(card, url) {
   card._metaTimer = setTimeout(async () => {
     try {
       const response = await fetch(
-        `/api/image-info?url=${encodeURIComponent(normalized)}`
+        `/api/image-info?url=${encodeURIComponent(normalized)}`,
       );
       const result = await response.json();
       if (!response.ok) {
@@ -501,7 +499,7 @@ async function loadThumbnailMeta(url) {
 
   try {
     const response = await fetch(
-      `/api/image-info?url=${encodeURIComponent(normalized)}`
+      `/api/image-info?url=${encodeURIComponent(normalized)}`,
     );
     const result = await response.json();
     if (!response.ok) {
@@ -562,119 +560,6 @@ function setMetaLink(el, url) {
   el.appendChild(link);
 }
 
-function renderCustomFieldInputs() {
-  customFieldInputs = {};
-  customFieldsListEl.innerHTML = "";
-
-  if (!customSchemaFields.length) {
-    customFieldsEl.classList.add("hidden");
-    return;
-  }
-
-  customFieldsEl.classList.remove("hidden");
-
-  for (const field of customSchemaFields) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "field";
-
-    const label = document.createElement("label");
-    label.htmlFor = `custom-${field.name}`;
-    label.textContent = field.label || field.name;
-    if (field.type === "array") {
-      const hint = document.createElement("span");
-      hint.className = "hint";
-      hint.textContent = " (one per line)";
-      label.appendChild(hint);
-    }
-    wrapper.appendChild(label);
-
-    let input;
-    if (field.type === "boolean") {
-      input = document.createElement("input");
-      input.type = "checkbox";
-      input.id = `custom-${field.name}`;
-      wrapper.classList.add("field-boolean");
-      wrapper.appendChild(input);
-    } else if (field.type === "array") {
-      input = document.createElement("textarea");
-      input.id = `custom-${field.name}`;
-      input.rows = 4;
-      wrapper.appendChild(input);
-    } else {
-      input = document.createElement("input");
-      input.id = `custom-${field.name}`;
-      input.type = field.type === "number" ? "number" : "text";
-      if (field.type === "number") {
-        input.step = "any";
-      }
-      wrapper.appendChild(input);
-    }
-
-    customFieldInputs[field.name] = input;
-    customFieldsListEl.appendChild(wrapper);
-  }
-}
-
-async function loadSchemaFields() {
-  const response = await fetch("/api/schema");
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result.error || "Failed to load schema");
-  }
-  customSchemaFields = (result.fields || []).filter((field) => !field.builtin);
-  renderCustomFieldInputs();
-}
-
-function populateCustomFields(data) {
-  for (const field of customSchemaFields) {
-    const input = customFieldInputs[field.name];
-    if (!input) continue;
-
-    const value = data[field.name];
-    if (field.type === "boolean") {
-      input.checked = Boolean(value);
-    } else if (field.type === "array") {
-      input.value = arrayToLines(value);
-    } else if (field.type === "number") {
-      input.value = value === null || value === undefined ? "" : value;
-    } else {
-      input.value = value ?? "";
-    }
-  }
-}
-
-function readCustomFieldValues() {
-  const values = {};
-  for (const field of customSchemaFields) {
-    const input = customFieldInputs[field.name];
-    if (!input) continue;
-
-    if (field.type === "boolean") {
-      values[field.name] = input.checked;
-      continue;
-    }
-
-    if (field.type === "array") {
-      values[field.name] = linesToArray(input.value);
-      continue;
-    }
-
-    const raw = input.value.trim();
-    if (field.type === "number") {
-      if (!raw) {
-        values[field.name] = null;
-      } else {
-        const parsed = parseFloat(raw);
-        values[field.name] = Number.isNaN(parsed) ? null : parsed;
-      }
-      continue;
-    }
-
-    values[field.name] = raw || null;
-  }
-  return values;
-}
-
 function populateEditor(result, options = {}) {
   const data = result.data || {};
   editorMode = options.mode || editorMode;
@@ -683,6 +568,8 @@ function populateEditor(result, options = {}) {
   fields.name.value = data.name || "";
   fields.slug.value = data.slug || "";
   fields.premium.checked = Boolean(data.premium);
+  fields.owner.value = data.owner || "";
+  fields.contact.value = data.contact || "";
   fields.description.value = data.description || "";
   fields.location.value = data.location || "";
   fields.canton.value = data.canton || "";
@@ -695,7 +582,6 @@ function populateEditor(result, options = {}) {
   fields.longitude.value = data.coordinates?.[1] ?? "";
   fields.amenities.value = arrayToLines(data.amenities);
   fields.rawPreview.value = result.raw_text_preview || "";
-  populateCustomFields(data);
 
   if (editorMode === "firestore") {
     editorTitleEl.textContent = data.name || "Edit spa";
@@ -708,7 +594,7 @@ function populateEditor(result, options = {}) {
     setMetaTag(metaModeEl, "New scrape");
     setMetaTag(
       metaPlaywrightEl,
-      result.used_playwright ? "Fetched with Playwright" : "Fetched with httpx"
+      result.used_playwright ? "Fetched with Playwright" : "Fetched with httpx",
     );
     setMetaLink(metaSourceEl, result.source_url || "");
     rawPreviewFieldEl.classList.remove("hidden");
@@ -748,23 +634,27 @@ function buildSpaPayload() {
     data: {
       amenities: linesToArray(fields.amenities.value),
       canton: fields.canton.value.trim() || null,
+      contact: fields.contact.value.trim() || null,
       coordinates,
       description: fields.description.value.trim() || null,
       images: getImageUrls(),
       location: fields.location.value.trim() || null,
       name: fields.name.value.trim() || null,
+      owner: fields.owner.value.trim() || null,
       premium: fields.premium.checked,
       price_from,
       slug: fields.slug.value.trim() || null,
       website: fields.website.value.trim() || null,
-      ...readCustomFieldValues(),
     },
   };
 }
 
 async function generateThumbnail() {
   if (!currentSpaId) {
-    setThumbnailStatus("Save the spa to Firebase before generating a thumbnail.", "error");
+    setThumbnailStatus(
+      "Save the spa to Firebase before generating a thumbnail.",
+      "error",
+    );
     return;
   }
 
@@ -786,7 +676,7 @@ async function generateThumbnail() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: firstUrl }),
-      }
+      },
     );
     const result = await response.json();
     if (!response.ok) {
@@ -796,7 +686,7 @@ async function generateThumbnail() {
     renderThumbnail(result.public_url);
     setThumbnailStatus(
       `Saved ${result.width} × ${result.height} · ${result.size_kb} KB to thumbnail/`,
-      "success"
+      "success",
     );
     setTimeout(clearThumbnailStatus, 4000);
   } catch (error) {
@@ -809,7 +699,10 @@ async function generateThumbnail() {
 
 async function uploadImagesToFirebase() {
   if (!currentSpaId) {
-    setUploadStatus("Save the spa to Firebase before uploading images.", "error");
+    setUploadStatus(
+      "Save the spa to Firebase before uploading images.",
+      "error",
+    );
     return;
   }
 
@@ -830,7 +723,7 @@ async function uploadImagesToFirebase() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ urls }),
-      }
+      },
     );
     const result = await response.json();
     if (!response.ok) {
@@ -847,12 +740,12 @@ async function uploadImagesToFirebase() {
         .join(" · ");
       setUploadStatus(
         `Uploaded ${uploadedCount} image(s). ${errorCount} failed: ${details}`,
-        "error"
+        "error",
       );
     } else {
       setUploadStatus(
         `Uploaded ${uploadedCount} image(s) to Firebase Storage as WebP.`,
-        "success"
+        "success",
       );
       setTimeout(clearUploadStatus, 3000);
     }
@@ -887,7 +780,7 @@ async function rescrapeMissingFields() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildSpaPayload()),
-      }
+      },
     );
     const result = await response.json();
     if (!response.ok) {
@@ -898,7 +791,10 @@ async function rescrapeMissingFields() {
 
     const filled = result.filled_fields || [];
     if (!filled.length) {
-      setStatus("No missing fields could be filled from the website.", "loading");
+      setStatus(
+        "No missing fields could be filled from the website.",
+        "loading",
+      );
     } else {
       const playwrightNote = result.used_playwright ? " (via Playwright)" : "";
       setStatus(`Filled: ${filled.join(", ")}${playwrightNote}`, "loading");
@@ -926,7 +822,7 @@ async function deleteListing() {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirm: deleteConfirmInput.value.trim() }),
-      }
+      },
     );
     const result = await response.json();
     if (!response.ok) {
@@ -986,7 +882,10 @@ async function saveSpa() {
 function loadScrapeResult() {
   const raw = sessionStorage.getItem("scrapeResult");
   if (!raw) {
-    setStatus("No scrape result found. Go back and scrape a URL first.", "error");
+    setStatus(
+      "No scrape result found. Go back and scrape a URL first.",
+      "error",
+    );
     return;
   }
 
@@ -1017,13 +916,6 @@ async function loadSpa(spaId) {
 }
 
 async function initEditor() {
-  try {
-    await loadSchemaFields();
-  } catch (error) {
-    setStatus(error.message, "error");
-    return;
-  }
-
   if (editorMode === "firestore") {
     if (!currentSpaId) {
       setStatus("Missing spa ID.", "error");
