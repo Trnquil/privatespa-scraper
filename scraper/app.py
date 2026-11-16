@@ -145,7 +145,23 @@ def api_publish_spa(spa_id):
         generate_spa_thumbnail(spa_id, images[0])
 
     updated = update_spa(spa_id, {"status": PUBLISHED})
+    crawl_db.init_db()
+    crawl_db.mark_spa_reviewed(spa_id, crawl_db.ACCEPTED)
     return jsonify(updated)
+
+
+@app.post("/api/spas/<spa_id>/reject")
+def api_reject_draft(spa_id):
+    """Reject a draft: delete it (and any uploaded images). Only drafts can be rejected."""
+    spa = get_spa(spa_id)
+    if not spa:
+        return jsonify({"error": "Spa not found"}), 404
+    if spa["data"].get("status") != DRAFT:
+        return jsonify({"error": "Only drafts can be rejected; use Delete listing for published spas"}), 400
+    result = delete_spa(spa_id)
+    crawl_db.init_db()
+    crawl_db.mark_spa_reviewed(spa_id, crawl_db.REJECTED, note="Rejected in review")
+    return jsonify(result)
 
 
 @app.post("/api/spas/<spa_id>/unpublish")

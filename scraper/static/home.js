@@ -65,14 +65,28 @@ function updateSpaListCount(shown, total, query) {
   spaListCountEl.classList.remove("hidden");
 }
 
-let statusFilter = "all";
+const draftsSectionEl = document.getElementById("drafts-section");
+const draftsListEl = document.getElementById("drafts-list");
+const draftsTitleEl = document.getElementById("drafts-title");
+const startReviewBtn = document.getElementById("start-review-btn");
 
-function renderSpaList(spas) {
+function renderDrafts(drafts) {
+  draftsSectionEl.classList.toggle("hidden", drafts.length === 0);
+  if (!drafts.length) return;
+  draftsTitleEl.textContent = `Drafts to review (${drafts.length})`;
+  startReviewBtn.href = `/spa/${encodeURIComponent(drafts[0].id)}`;
+  draftsListEl.innerHTML = "";
+  for (const spa of drafts) {
+    draftsListEl.appendChild(renderSpaItem(spa));
+  }
+}
+
+function renderSpaList(allEntries) {
+  renderDrafts(allEntries.filter((spa) => spa.status === "draft"));
+  const spas = allEntries.filter((spa) => spa.status !== "draft");
   spaListEl.innerHTML = "";
   const query = spaSearchInput.value.trim().toLowerCase();
-  const byStatus =
-    statusFilter === "all" ? spas : spas.filter((spa) => spa.status === statusFilter);
-  const filtered = query ? byStatus.filter((spa) => spaMatchesQuery(spa, query)) : byStatus;
+  const filtered = query ? spas.filter((spa) => spaMatchesQuery(spa, query)) : spas;
 
   updateSpaListCount(filtered.length, spas.length, query);
 
@@ -88,60 +102,65 @@ function renderSpaList(spas) {
   }
 
   for (const spa of filtered) {
-    const link = document.createElement("a");
-    link.className = "spa-list-item";
-    link.href = `/spa/${encodeURIComponent(spa.id)}`;
-
-    const header = document.createElement("div");
-    header.className = "spa-list-item-header";
-
-    const title = document.createElement("strong");
-    title.textContent = spa.name || "Untitled";
-
-    header.appendChild(title);
-
-    if (spa.status === "draft") {
-      const badge = document.createElement("span");
-      badge.className = "spa-draft-badge";
-      badge.textContent = spa.source === "crawler" ? "Draft · crawled" : "Draft";
-      header.appendChild(badge);
-    }
-
-    if (spa.premium) {
-      const premiumIcon = document.createElement("span");
-      premiumIcon.className = "spa-premium-icon";
-      premiumIcon.textContent = "★";
-      premiumIcon.setAttribute("aria-label", "Premium spa");
-      premiumIcon.title = "Premium spa";
-      header.appendChild(premiumIcon);
-    }
-
-    if (spa.owner) {
-      const ownerIcon = document.createElement("span");
-      ownerIcon.className = "spa-owner-icon";
-      ownerIcon.setAttribute("aria-label", "Has owner");
-      ownerIcon.title = `Owner: ${spa.owner}`;
-      header.appendChild(ownerIcon);
-    }
-
-    if (!spa.complete) {
-      const icon = document.createElement("span");
-      icon.className = "spa-incomplete-icon";
-      icon.textContent = "!";
-      icon.setAttribute("aria-label", "Incomplete spa information");
-      icon.title = `Missing: ${(spa.missing_fields || []).join(", ")}`;
-      header.appendChild(icon);
-    }
-
-    const meta = document.createElement("span");
-    const metaParts = [spa.canton, spa.location].filter(Boolean);
-    meta.textContent = metaParts.join(" · ") || spa.website || spa.id;
-
-    link.appendChild(header);
-    link.appendChild(meta);
-    spaListEl.appendChild(link);
+    spaListEl.appendChild(renderSpaItem(spa));
   }
 }
+
+function renderSpaItem(spa) {
+  const link = document.createElement("a");
+  link.className = "spa-list-item";
+  link.href = `/spa/${encodeURIComponent(spa.id)}`;
+
+  const header = document.createElement("div");
+  header.className = "spa-list-item-header";
+
+  const title = document.createElement("strong");
+  title.textContent = spa.name || "Untitled";
+
+  header.appendChild(title);
+
+  if (spa.status === "draft") {
+    const badge = document.createElement("span");
+    badge.className = "spa-draft-badge";
+    badge.textContent = spa.source === "crawler" ? "Draft · crawled" : "Draft";
+    header.appendChild(badge);
+  }
+
+  if (spa.premium) {
+    const premiumIcon = document.createElement("span");
+    premiumIcon.className = "spa-premium-icon";
+    premiumIcon.textContent = "★";
+    premiumIcon.setAttribute("aria-label", "Premium spa");
+    premiumIcon.title = "Premium spa";
+    header.appendChild(premiumIcon);
+  }
+
+  if (spa.owner) {
+    const ownerIcon = document.createElement("span");
+    ownerIcon.className = "spa-owner-icon";
+    ownerIcon.setAttribute("aria-label", "Has owner");
+    ownerIcon.title = `Owner: ${spa.owner}`;
+    header.appendChild(ownerIcon);
+  }
+
+  if (!spa.complete) {
+    const icon = document.createElement("span");
+    icon.className = "spa-incomplete-icon";
+    icon.textContent = "!";
+    icon.setAttribute("aria-label", "Incomplete spa information");
+    icon.title = `Missing: ${(spa.missing_fields || []).join(", ")}`;
+    header.appendChild(icon);
+  }
+
+  const meta = document.createElement("span");
+  const metaParts = [spa.canton, spa.location].filter(Boolean);
+  meta.textContent = metaParts.join(" · ") || spa.website || spa.id;
+
+  link.appendChild(header);
+  link.appendChild(meta);
+  return link;
+}
+
 
 async function loadSpaList() {
   refreshSpasBtn.disabled = true;
@@ -228,16 +247,6 @@ urlInput.addEventListener("blur", () => {
 
 spaSearchInput.addEventListener("input", () => {
   renderSpaList(allSpas);
-});
-
-document.querySelectorAll(".spa-filter button").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    statusFilter = btn.dataset.filter;
-    document
-      .querySelectorAll(".spa-filter button")
-      .forEach((b) => b.classList.toggle("active", b === btn));
-    renderSpaList(allSpas);
-  });
 });
 
 refreshSpasBtn.addEventListener("click", loadSpaList);

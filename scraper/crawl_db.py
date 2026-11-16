@@ -27,6 +27,8 @@ NO_WEBSITE = "no_website"        # Google has no website for it; add by hand if 
 SKIPPED = "skipped"              # outside Switzerland or permanently closed
 FAILED_SCRAPE = "failed"         # website could not be scraped
 NOT_PRIVATE = "not_private"      # the AI judged it is not a private spa (e.g. regular hotel spa)
+REJECTED = "rejected"            # draft was rejected in review; never re-added
+ACCEPTED = "accepted"            # draft was accepted and published
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS regions (
@@ -94,7 +96,10 @@ def list_regions() -> list[dict]:
                    r.saturated, r.error,
                    (SELECT COUNT(*) FROM candidates c WHERE c.region_id = r.id) AS candidates,
                    (SELECT COUNT(*) FROM candidates c
-                     WHERE c.region_id = r.id AND c.status = 'draft_created') AS drafts
+                     WHERE c.region_id = r.id
+                       AND c.status IN ('draft_created', 'accepted', 'rejected')) AS drafts,
+                   (SELECT COUNT(*) FROM candidates c
+                     WHERE c.region_id = r.id AND c.status = 'draft_created') AS to_review
             FROM regions r
             ORDER BY CASE r.status WHEN 'running' THEN 0 WHEN 'todo' THEN 1
                                    WHEN 'failed' THEN 2 ELSE 3 END,
@@ -188,3 +193,12 @@ def list_candidates(region_id: str | None = None) -> list[dict]:
         else:
             rows = conn.execute("SELECT * FROM candidates ORDER BY region_id, status, name").fetchall()
     return [dict(r) for r in rows]
+
+
+def mark_spa_reviewed(spa_id: str, status: str, note: str | None = None) -> None:
+    """Record the review outcome of a crawled draft (by its Firestore id)."""
+    with connect() as conn:
+        conn.execute(
+            "UPDATE candidates SET status = ?, note = COALESCE(?, note), updated_at = ? WHERE spa_id = ?",
+            (status, note, now(), spa_id),
+        )

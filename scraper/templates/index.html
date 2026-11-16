@@ -32,9 +32,22 @@
         <div id="status" class="status hidden"></div>
       </section>
 
+      <section id="drafts-section" class="drafts-section hidden">
+        <div class="spa-library-header">
+          <h2 id="drafts-title">Drafts to review</h2>
+          <div class="spa-library-actions">
+            <a id="start-review-btn" class="save-btn" href="#">Start review →</a>
+          </div>
+        </div>
+        <p class="hint">
+          Found by the crawler, not on privatespa.com yet. Open one to accept or reject it.
+        </p>
+        <div id="drafts-list" class="spa-list"></div>
+      </section>
+
       <section class="spa-library">
         <div class="spa-library-header">
-          <h2>Existing spas</h2>
+          <h2>Published spas</h2>
           <div class="spa-library-actions">
             <button type="button" id="create-spa-btn" class="save-btn">
               New spa
@@ -51,11 +64,6 @@
           placeholder="Search by name, canton, location, contact…"
           autocomplete="off"
         />
-        <div class="spa-filter" role="group" aria-label="Filter by status">
-          <button type="button" class="secondary-btn active" data-filter="all">All</button>
-          <button type="button" class="secondary-btn" data-filter="draft">Drafts</button>
-          <button type="button" class="secondary-btn" data-filter="published">Published</button>
-        </div>
         <p id="spa-list-count" class="spa-list-count hidden"></p>
         <div id="spa-list-status" class="status hidden"></div>
         <div id="spa-list" class="spa-list"></div>

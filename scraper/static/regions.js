@@ -12,6 +12,8 @@ const candidatesBodyEl = document.getElementById("candidates-body");
 const CANDIDATE_LABELS = {
   draft_created: "New draft",
   not_private: "Not a private spa",
+  accepted: "Published",
+  rejected: "Rejected",
   duplicate: "Already listed",
   no_website: "No website",
   skipped: "Skipped",

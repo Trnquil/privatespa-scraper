@@ -32,6 +32,18 @@
         </nav>
       </header>
 
+      <div id="review-bar" class="review-bar hidden">
+        <div class="review-bar-text">
+          <strong>Draft</strong>
+          <span id="review-progress"></span>
+          <span class="review-bar-hint">Edit anything below, then decide.</span>
+        </div>
+        <div class="review-bar-actions">
+          <button type="button" id="reject-btn" class="reject-btn">✕ Reject</button>
+          <button type="button" id="accept-btn" class="accept-btn">✓ Accept &amp; publish</button>
+        </div>
+      </div>
+
       <div id="status" class="status hidden"></div>
 
       <section id="editor" class="editor">

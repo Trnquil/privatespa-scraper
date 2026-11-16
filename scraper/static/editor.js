@@ -136,8 +136,15 @@ async function loadSpaList() {
   return allSpas;
 }
 
+/** Spas you can step through with ‹ ›: drafts among drafts, published among published. */
+function navList() {
+  const current = allSpas.find((spa) => spa.id === currentSpaId);
+  const status = current?.status || currentStatus || "published";
+  return allSpas.filter((spa) => spa.status === status);
+}
+
 function getCurrentSpaIndex() {
-  return allSpas.findIndex((spa) => spa.id === currentSpaId);
+  return navList().findIndex((spa) => spa.id === currentSpaId);
 }
 
 function syncSpaNav() {
@@ -152,16 +159,18 @@ function syncSpaNav() {
     return;
   }
 
+  const list = navList();
+  const isDraft = list[index]?.status === "draft";
   spaNavEl.classList.remove("hidden");
-  spaNavLabelEl.textContent = `${index + 1} of ${allSpas.length}`;
+  spaNavLabelEl.textContent = `${isDraft ? "Draft " : ""}${index + 1} of ${list.length}`;
 
   spaPrevBtn.disabled = index <= 0;
-  spaNextBtn.disabled = index >= allSpas.length - 1;
+  spaNextBtn.disabled = index >= list.length - 1;
 }
 
 function goToAdjacentSpa(step) {
   const index = getCurrentSpaIndex();
-  const nextSpa = allSpas[index + step];
+  const nextSpa = navList()[index + step];
   if (!nextSpa) return;
   window.location.href = `/spa/${encodeURIComponent(nextSpa.id)}`;
 }
@@ -564,8 +573,81 @@ const publishBtn = document.getElementById("publish-btn");
 const metaStatusEl = document.getElementById("meta-status");
 let currentStatus = null;
 
+const reviewBarEl = document.getElementById("review-bar");
+const reviewProgressEl = document.getElementById("review-progress");
+const acceptBtn = document.getElementById("accept-btn");
+const rejectBtn = document.getElementById("reject-btn");
+
+function syncReviewBar() {
+  const isDraft = editorMode === "firestore" && Boolean(currentSpaId) && currentStatus === "draft";
+  reviewBarEl.classList.toggle("hidden", !isDraft);
+  if (!isDraft) return;
+  const drafts = allSpas.filter((spa) => spa.status === "draft");
+  const index = drafts.findIndex((spa) => spa.id === currentSpaId);
+  reviewProgressEl.textContent = index >= 0 ? `${index + 1} of ${drafts.length} to review` : "";
+}
+
+/** After accepting or rejecting, continue with the next draft, or go home when done. */
+function goToNextDraft() {
+  const drafts = allSpas.filter((spa) => spa.status === "draft");
+  const index = drafts.findIndex((spa) => spa.id === currentSpaId);
+  const next = drafts[index + 1] || drafts.find((spa) => spa.id !== currentSpaId);
+  window.location.href = next ? `/spa/${encodeURIComponent(next.id)}` : "/?reviewed=1";
+}
+
+function setReviewBusy(busy) {
+  acceptBtn.disabled = busy;
+  rejectBtn.disabled = busy;
+}
+
+async function acceptDraft() {
+  if (!currentSpaId) return;
+  setReviewBusy(true);
+  setStatus("Saving, copying images to Firebase Storage and publishing…", "loading");
+  try {
+    const saveResponse = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildSpaPayload()),
+    });
+    const saved = await saveResponse.json();
+    if (!saveResponse.ok) throw new Error(saved.error || "Failed to save spa");
+    const response = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}/publish`, {
+      method: "POST",
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      const details = (result.errors || []).map((e) => `${e.source_url}: ${e.error}`).join("\n");
+      throw new Error((result.error || "Failed to publish") + (details ? `\n${details}` : ""));
+    }
+    goToNextDraft();
+  } catch (error) {
+    setStatus(error.message, "error");
+    setReviewBusy(false);
+  }
+}
+
+async function rejectDraft() {
+  if (!currentSpaId) return;
+  setReviewBusy(true);
+  setStatus("Rejecting…", "loading");
+  try {
+    const response = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}/reject`, {
+      method: "POST",
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Failed to reject");
+    goToNextDraft();
+  } catch (error) {
+    setStatus(error.message, "error");
+    setReviewBusy(false);
+  }
+}
+
 function syncPublishButton() {
-  const show = editorMode === "firestore" && Boolean(currentSpaId);
+  syncReviewBar();
+  // Drafts are handled by the review bar; published spas get "Unpublish" here.
+  const show = editorMode === "firestore" && Boolean(currentSpaId) && currentStatus !== "draft";
   publishBtn.classList.toggle("hidden", !show);
   publishBtn.textContent = currentStatus === "draft" ? "Publish" : "Unpublish";
   metaStatusEl.textContent = show
@@ -968,6 +1050,7 @@ async function loadSpa(spaId) {
     clearStatus();
     populateEditor(result, { mode: "firestore", spaId });
     syncSpaNav();
+    syncReviewBar();
   } catch (error) {
     setStatus(error.message, "error");
   }
@@ -993,6 +1076,8 @@ async function initEditor() {
 
 saveSpaBtn.addEventListener("click", saveSpa);
 publishBtn.addEventListener("click", togglePublish);
+acceptBtn.addEventListener("click", acceptDraft);
+rejectBtn.addEventListener("click", rejectDraft);
 rescrapeMissingBtn.addEventListener("click", rescrapeMissingFields);
 deleteSpaBtn.addEventListener("click", openDeleteModal);
 deleteCancelBtn.addEventListener("click", closeDeleteModal);
