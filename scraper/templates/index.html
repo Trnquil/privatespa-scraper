@@ -14,6 +14,7 @@
           Scrape a new spa from a URL, or select an existing spa from Firestore
           to edit.
         </p>
+        <nav class="top-links"><a href="/regions">Regions &amp; crawler →</a></nav>
       </header>
 
       <section class="scrape-section">
@@ -50,6 +51,11 @@
           placeholder="Search by name, canton, location, contact…"
           autocomplete="off"
         />
+        <div class="spa-filter" role="group" aria-label="Filter by status">
+          <button type="button" class="secondary-btn active" data-filter="all">All</button>
+          <button type="button" class="secondary-btn" data-filter="draft">Drafts</button>
+          <button type="button" class="secondary-btn" data-filter="published">Published</button>
+        </div>
         <p id="spa-list-count" class="spa-list-count hidden"></p>
         <div id="spa-list-status" class="status hidden"></div>
         <div id="spa-list" class="spa-list"></div>

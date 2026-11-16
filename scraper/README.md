@@ -115,3 +115,70 @@ When editing a spa, use **Save to Firebase** to persist changes. New scraped spa
 4. If text is under 500 characters, retries with **Playwright** (headless Chromium)
 5. Sends up to ~10,000 characters of text to the **OpenAI API** for structured extraction
 6. Geocodes the extracted **location** with **Google Maps** when coordinates are not already on the page
+
+## Crawling regions (finding new spas automatically)
+
+The crawler searches Google for "private spa" one canton at a time, skips spas
+you already have, scrapes the rest with the scraper above, and saves them to
+Firestore as **drafts**. Drafts are not shown on privatespa.com until you
+publish them.
+
+### One-time setup
+
+1. In Google Cloud, enable **Places API (New)** for `GOOGLE_MAPS_API_KEY`.
+2. Run the migration once. It marks existing spas as published and moves
+   contact emails to the admin-only `spa_private` collection:
+   ```bash
+   python migrate_status_and_contacts.py          # dry run
+   python migrate_status_and_contacts.py --apply
+   ```
+3. Paste `firestore.rules` into Firebase console → Firestore → Rules, so
+   nobody outside this tool can read contact emails. Check it against your
+   current rules first.
+
+### Using it
+
+In the web UI, open **Regions** (`/regions`):
+
+- **Crawl next region** crawls the highest-priority canton still marked *todo*.
+- Click a canton to see every place Google returned and what happened to it:
+  new draft, already listed, no website, skipped (outside CH or closed), or
+  scrape failed.
+- **Priority:** higher numbers are crawled first.
+- **Mark todo** queues a canton again. Places already handled are not
+  re-added; failed scrapes are retried.
+- ⚠ next to a canton means Google returned its maximum of 60 results, so
+  some spas may be missing.
+
+Then go through the **Drafts** filter on the home page, fix anything the AI
+got wrong, remove bad images, and click **Publish**. Publishing copies the
+images to Firebase Storage, creates the thumbnail and sets the spa live.
+
+Or from the command line:
+
+```bash
+python crawler.py status        # all cantons and their state
+python crawler.py next          # crawl the next one
+python crawler.py run zh        # crawl a specific canton
+python crawler.py candidates zh # what was found in Zürich
+python crawler.py reset zh      # mark Zürich todo again
+```
+
+Tracking lives in `crawl.db` (SQLite, next to this file, not committed).
+Back it up if you move machines.
+
+Optional `.env` settings:
+
+```
+CRAWL_QUERIES=private spa            # comma-separated search phrases
+CRAWL_DB_PATH=/path/to/crawl.db
+```
+
+### Running on a server
+
+The UI has no login and can delete spas, so never expose its port. Keep it
+bound to `127.0.0.1` and connect through an SSH tunnel:
+
+```bash
+ssh -L 5001:localhost:5001 user@server   # then open http://localhost:5001
+```

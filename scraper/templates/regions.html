@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Regions · PrivateSpa Scraper</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="page-header">
+        <a href="/" class="back-link">← Back to all spas</a>
+        <h1>Regions</h1>
+      </header>
+      <p class="hint">
+        Each crawl searches Google for “private spa” in one canton, skips spas you already
+        have, scrapes the rest and saves them as <strong>drafts</strong>. Drafts are not shown
+        on privatespa.com until you publish them in the editor.
+      </p>
+
+      <section class="crawl-panel">
+        <div class="crawl-summary" id="crawl-summary"></div>
+        <button type="button" id="crawl-next-btn" class="save-btn">Crawl next region</button>
+      </section>
+
+      <section id="crawl-job" class="crawl-job hidden">
+        <h2 id="crawl-job-title">Crawl running…</h2>
+        <pre id="crawl-log" class="crawl-log"></pre>
+      </section>
+
+      <div id="status" class="status hidden"></div>
+
+      <table class="regions-table">
+        <thead>
+          <tr>
+            <th>Canton</th>
+            <th>Status</th>
+            <th>Last crawl</th>
+            <th class="num">Found</th>
+            <th class="num">New drafts</th>
+            <th class="num">Priority</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="regions-body"></tbody>
+      </table>
+
+      <section id="candidates" class="candidates hidden">
+        <h2 id="candidates-title"></h2>
+        <table class="regions-table">
+          <thead>
+            <tr><th>Result</th><th>Name</th><th>Website</th><th>Note</th></tr>
+          </thead>
+          <tbody id="candidates-body"></tbody>
+        </table>
+      </section>
+    </div>
+    <script src="/static/regions.js"></script>
+  </body>
+</html>

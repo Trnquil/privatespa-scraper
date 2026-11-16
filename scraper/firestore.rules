@@ -1,0 +1,27 @@
+// Firestore security rules for privatespa-com.
+//
+// Paste into Firebase console → Firestore Database → Rules, and compare with
+// what is there first: keep any rules you have for other collections.
+//
+// The admin scraper uses the Admin SDK and is not affected by these rules.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Public spa profiles: anyone can read, so the website works.
+    match /spas/{spaId} {
+      allow read: if true;
+      // Spa owners may edit their own spa from the website dashboard,
+      // but cannot change who owns it, publish it, or mark it premium.
+      allow update: if request.auth != null
+        && resource.data.owner == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['owner', 'status', 'premium', 'google_place_id', 'source']);
+    }
+
+    // Contact emails and other admin-only data: no client access at all.
+    match /spa_private/{spaId} {
+      allow read, write: if false;
+    }
+  }
+}

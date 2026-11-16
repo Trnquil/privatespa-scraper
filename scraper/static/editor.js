@@ -560,6 +560,62 @@ function setMetaLink(el, url) {
   el.appendChild(link);
 }
 
+const publishBtn = document.getElementById("publish-btn");
+const metaStatusEl = document.getElementById("meta-status");
+let currentStatus = null;
+
+function syncPublishButton() {
+  const show = editorMode === "firestore" && Boolean(currentSpaId);
+  publishBtn.classList.toggle("hidden", !show);
+  publishBtn.textContent = currentStatus === "draft" ? "Publish" : "Unpublish";
+  metaStatusEl.textContent = show
+    ? currentStatus === "draft"
+      ? "Draft (not on privatespa.com)"
+      : "Published"
+    : "";
+  metaStatusEl.className = currentStatus === "draft" ? "spa-draft-badge" : "";
+}
+
+async function togglePublish() {
+  if (!currentSpaId) return;
+  const publishing = currentStatus === "draft";
+  publishBtn.disabled = true;
+  setStatus(
+    publishing
+      ? "Saving, copying images to Firebase Storage and publishing…"
+      : "Unpublishing…",
+    "loading",
+  );
+  try {
+    if (publishing) {
+      // Save edits first so nothing typed is lost.
+      const saveResponse = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildSpaPayload()),
+      });
+      const saved = await saveResponse.json();
+      if (!saveResponse.ok) throw new Error(saved.error || "Failed to save spa");
+    }
+    const response = await fetch(
+      `/api/spas/${encodeURIComponent(currentSpaId)}/${publishing ? "publish" : "unpublish"}`,
+      { method: "POST" },
+    );
+    const result = await response.json();
+    if (!response.ok) {
+      const details = (result.errors || []).map((e) => `${e.source_url}: ${e.error}`).join("\n");
+      throw new Error((result.error || "Failed") + (details ? `\n${details}` : ""));
+    }
+    populateEditor(result, { mode: "firestore", spaId: result.id });
+    setStatus(publishing ? "Published. It is live on privatespa.com within the hour." : "Unpublished.", "loading");
+    setTimeout(clearStatus, 4000);
+  } catch (error) {
+    setStatus(error.message, "error");
+  } finally {
+    publishBtn.disabled = false;
+  }
+}
+
 function populateEditor(result, options = {}) {
   const data = result.data || {};
   editorMode = options.mode || editorMode;
@@ -606,6 +662,8 @@ function populateEditor(result, options = {}) {
   syncUploadImagesButton();
   syncRescrapeMissingButton();
   syncDeleteListingButton();
+  currentStatus = data.status || "published";
+  syncPublishButton();
 }
 
 function buildSpaPayload() {
@@ -934,6 +992,7 @@ async function initEditor() {
 }
 
 saveSpaBtn.addEventListener("click", saveSpa);
+publishBtn.addEventListener("click", togglePublish);
 rescrapeMissingBtn.addEventListener("click", rescrapeMissingFields);
 deleteSpaBtn.addEventListener("click", openDeleteModal);
 deleteCancelBtn.addEventListener("click", closeDeleteModal);

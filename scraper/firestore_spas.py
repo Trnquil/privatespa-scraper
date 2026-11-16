@@ -6,10 +6,10 @@ from firebase_admin import firestore
 
 from firebase_client import init_firebase
 
+# Fields stored on the public `spas/{id}` document (readable by anyone).
 SPA_FIELDS = (
     "amenities",
     "canton",
-    "contact",
     "coordinates",
     "description",
     "images",
@@ -19,15 +19,28 @@ SPA_FIELDS = (
     "premium",
     "price_from",
     "slug",
+    "status",
+    "google_place_id",
+    "source",
     "thumbnail",
     "website",
 )
 
+# Fields stored on `spa_private/{id}`, which only the admin tool can read.
+PRIVATE_FIELDS = ("contact",)
+PRIVATE_COLLECTION = "spa_private"
+
+DRAFT, PUBLISHED = "draft", "published"
+STATUSES = (DRAFT, PUBLISHED)
+
 DEFAULT_SPA_VALUES = {
     "premium": False,
+    "status": PUBLISHED,
 }
 
-COMPLETENESS_EXCLUDED = frozenset({"premium", "thumbnail", "owner", "contact"})
+COMPLETENESS_EXCLUDED = frozenset(
+    {"premium", "thumbnail", "owner", "status", "google_place_id", "source"}
+)
 
 
 def get_db():
@@ -75,6 +88,26 @@ def _normalize_string(value):
     return text or None
 
 
+def _normalize_status(value) -> str:
+    # Spas created before drafts existed have no status and are live.
+    return value if value in STATUSES else PUBLISHED
+
+
+def _private_ref(spa_id: str):
+    return get_db().collection(PRIVATE_COLLECTION).document(spa_id)
+
+
+def _get_private(spa_id: str) -> dict:
+    doc = _private_ref(spa_id).get()
+    return (doc.to_dict() or {}) if doc.exists else {}
+
+
+def _save_private(spa_id: str, data: dict) -> None:
+    payload = {f: _normalize_string(data[f]) for f in PRIVATE_FIELDS if f in data}
+    if payload:
+        _private_ref(spa_id).set(payload, merge=True)
+
+
 def _is_field_filled(value, field: str) -> bool:
     if field in ("amenities", "images"):
         return bool(value)
@@ -107,14 +140,15 @@ def get_spa_completeness(data: dict) -> dict:
     }
 
 
-def _spa_to_editor_payload(doc_id: str, data: dict) -> dict:
+def _spa_to_editor_payload(doc_id: str, data: dict, private: dict | None = None) -> dict:
     data = data or {}
+    private = private or {}
     return {
         "id": doc_id,
         "data": {
             "amenities": list(data.get("amenities") or []),
             "canton": data.get("canton"),
-            "contact": _normalize_string(data.get("contact")),
+            "contact": _normalize_string(private.get("contact")),
             "coordinates": _normalize_coordinates(data.get("coordinates")),
             "description": data.get("description"),
             "images": list(data.get("images") or []),
@@ -124,6 +158,9 @@ def _spa_to_editor_payload(doc_id: str, data: dict) -> dict:
             "premium": _normalize_premium(data.get("premium")),
             "price_from": _normalize_price_from(data.get("price_from")),
             "slug": data.get("slug"),
+            "status": _normalize_status(data.get("status")),
+            "google_place_id": data.get("google_place_id"),
+            "source": data.get("source"),
             "thumbnail": data.get("thumbnail"),
             "website": data.get("website"),
         },
@@ -133,6 +170,10 @@ def _spa_to_editor_payload(doc_id: str, data: dict) -> dict:
 def list_spas() -> list[dict]:
     """Return summary info for all spas, sorted by name."""
     spas = []
+    private = {
+        doc.id: doc.to_dict() or {}
+        for doc in get_db().collection(PRIVATE_COLLECTION).stream()
+    }
     for doc in get_db().collection("spas").stream():
         data = doc.to_dict() or {}
         completeness = get_spa_completeness(data)
@@ -144,8 +185,10 @@ def list_spas() -> list[dict]:
                 "location": data.get("location"),
                 "website": data.get("website"),
                 "owner": _normalize_string(data.get("owner")),
-                "contact": _normalize_string(data.get("contact")),
+                "contact": _normalize_string(private.get(doc.id, {}).get("contact")),
                 "premium": _normalize_premium(data.get("premium")),
+                "status": _normalize_status(data.get("status")),
+                "source": data.get("source"),
                 "complete": completeness["complete"],
                 "missing_fields": completeness["missing_fields"],
             }
@@ -160,7 +203,7 @@ def get_spa(spa_id: str) -> dict | None:
     if not doc.exists:
         return None
 
-    payload = _spa_to_editor_payload(doc.id, doc.to_dict())
+    payload = _spa_to_editor_payload(doc.id, doc.to_dict(), _get_private(spa_id))
     if not payload["data"].get("thumbnail"):
         from storage_images import get_stored_thumbnail_url
 
@@ -186,8 +229,12 @@ def _build_spa_payload(data: dict) -> dict:
             payload[field] = _normalize_premium(value)
         elif field == "price_from":
             payload[field] = _normalize_price_from(value)
-        elif field in ("owner", "contact"):
+        elif field in ("owner", "google_place_id", "source"):
             payload[field] = _normalize_string(value)
+        elif field == "status":
+            if value not in STATUSES:
+                raise ValueError(f"Invalid status: {value!r}")
+            payload[field] = value
         elif field in ("amenities", "images"):
             payload[field] = list(value or [])
         else:
@@ -201,13 +248,15 @@ def create_spa(data: dict) -> dict:
     payload = _build_spa_payload(merged)
     doc_ref = get_db().collection("spas").document()
     doc_ref.set(payload)
-    return _spa_to_editor_payload(doc_ref.id, payload)
+    _save_private(doc_ref.id, merged)
+    return _spa_to_editor_payload(doc_ref.id, payload, {f: merged.get(f) for f in PRIVATE_FIELDS})
 
 
 def update_spa(spa_id: str, data: dict) -> dict:
     """Update an existing spa document."""
     payload = _build_spa_payload(data)
     get_db().collection("spas").document(spa_id).update(payload)
+    _save_private(spa_id, data or {})
     updated = get_spa(spa_id)
     if not updated:
         raise RuntimeError("Spa not found after update")
@@ -232,4 +281,39 @@ def delete_spa(spa_id: str) -> dict:
 
     deleted_files = delete_spa_storage(spa_id)
     doc_ref.delete()
+    _private_ref(spa_id).delete()
     return {"id": spa_id, "deleted_storage_files": deleted_files}
+
+
+def normalize_website(url: str | None) -> str | None:
+    """Comparable form of a website URL: host without www + path, no scheme or slash."""
+    if not url:
+        return None
+    from urllib.parse import urlparse
+
+    text = url.strip().lower()
+    if "://" not in text:
+        text = "https://" + text
+    parsed = urlparse(text)
+    host = (parsed.hostname or "").removeprefix("www.")
+    if not host:
+        return None
+    path = parsed.path.rstrip("/")
+    return host + path
+
+
+def existing_spa_index() -> dict:
+    """Place ids, websites and slugs already in Firestore, for deduplication."""
+    place_ids: set[str] = set()
+    websites: dict[str, str] = {}
+    slugs: set[str] = set()
+    for doc in get_db().collection("spas").select(["google_place_id", "website", "slug"]).stream():
+        data = doc.to_dict() or {}
+        if data.get("google_place_id"):
+            place_ids.add(data["google_place_id"])
+        site = normalize_website(data.get("website"))
+        if site:
+            websites[site] = doc.id
+        if data.get("slug"):
+            slugs.add(data["slug"])
+    return {"place_ids": place_ids, "websites": websites, "slugs": slugs}

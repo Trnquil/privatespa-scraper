@@ -2,4 +2,5 @@
 venv/
 __pycache__/
 *.pyc
-*firebase-adminsdk*.json
+*firebase-adminsdk*.jsoncrawl.db
+crawl.db-journal

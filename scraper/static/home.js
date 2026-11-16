@@ -65,10 +65,14 @@ function updateSpaListCount(shown, total, query) {
   spaListCountEl.classList.remove("hidden");
 }
 
+let statusFilter = "all";
+
 function renderSpaList(spas) {
   spaListEl.innerHTML = "";
   const query = spaSearchInput.value.trim().toLowerCase();
-  const filtered = query ? spas.filter((spa) => spaMatchesQuery(spa, query)) : spas;
+  const byStatus =
+    statusFilter === "all" ? spas : spas.filter((spa) => spa.status === statusFilter);
+  const filtered = query ? byStatus.filter((spa) => spaMatchesQuery(spa, query)) : byStatus;
 
   updateSpaListCount(filtered.length, spas.length, query);
 
@@ -95,6 +99,13 @@ function renderSpaList(spas) {
     title.textContent = spa.name || "Untitled";
 
     header.appendChild(title);
+
+    if (spa.status === "draft") {
+      const badge = document.createElement("span");
+      badge.className = "spa-draft-badge";
+      badge.textContent = spa.source === "crawler" ? "Draft · crawled" : "Draft";
+      header.appendChild(badge);
+    }
 
     if (spa.premium) {
       const premiumIcon = document.createElement("span");
@@ -217,6 +228,16 @@ urlInput.addEventListener("blur", () => {
 
 spaSearchInput.addEventListener("input", () => {
   renderSpaList(allSpas);
+});
+
+document.querySelectorAll(".spa-filter button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    statusFilter = btn.dataset.filter;
+    document
+      .querySelectorAll(".spa-filter button")
+      .forEach((b) => b.classList.toggle("active", b === btn));
+    renderSpaList(allSpas);
+  });
 });
 
 refreshSpasBtn.addEventListener("click", loadSpaList);

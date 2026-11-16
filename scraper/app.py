@@ -1,11 +1,26 @@
 #!/usr/bin/env python3
 """Local web UI for the spa scraper."""
 
+import threading
+from datetime import datetime
+
 import httpx
 from flask import Flask, jsonify, render_template, request
 
+import crawl_db
+from crawler import crawl_next, crawl_region
+
 from firebase_client import init_firebase
-from firestore_spas import create_spa, delete_spa, get_db, get_spa, list_spas, update_spa
+from firestore_spas import (
+    DRAFT,
+    PUBLISHED,
+    create_spa,
+    delete_spa,
+    get_db,
+    get_spa,
+    list_spas,
+    update_spa,
+)
 from image_info import get_image_info
 from rescrape import rescrape_missing_fields
 from scrape_spa import scrape_url
@@ -17,10 +32,127 @@ from storage_images import (
 
 app = Flask(__name__)
 
+# State of the background crawl job (one at a time).
+_crawl_job: dict = {"running": False, "region": None, "log": [], "summary": None, "error": None}
+_crawl_job_lock = threading.Lock()
+
+
+def _log(message: str) -> None:
+    _crawl_job["log"].append(f"{datetime.now():%H:%M:%S}  {message}")
+    del _crawl_job["log"][:-200]
+
+
+def _run_crawl(region_id: str | None) -> None:
+    try:
+        if region_id:
+            _crawl_job["summary"] = crawl_region(region_id, progress=_log)
+        else:
+            _crawl_job["summary"] = crawl_next(progress=_log)
+    except Exception as e:
+        _crawl_job["error"] = str(e)
+        _log(f"Error: {e}")
+    finally:
+        _crawl_job["running"] = False
+
 
 @app.get("/")
 def index():
     return render_template("index.html")
+
+
+@app.get("/regions")
+def regions_page():
+    return render_template("regions.html")
+
+
+@app.get("/api/regions")
+def api_regions():
+    crawl_db.init_db()
+    return jsonify({"regions": crawl_db.list_regions(), "job": _crawl_job})
+
+
+@app.get("/api/regions/<region_id>/candidates")
+def api_region_candidates(region_id):
+    crawl_db.init_db()
+    return jsonify({"candidates": crawl_db.list_candidates(region_id)})
+
+
+@app.post("/api/crawl")
+def api_start_crawl():
+    """Start a crawl in the background: {"region": "zh"} or {} for the next todo region."""
+    body = request.get_json(silent=True) or {}
+    region_id = (body.get("region") or "").strip() or None
+    crawl_db.init_db()
+    if region_id and not crawl_db.get_region(region_id):
+        return jsonify({"error": f"Unknown region: {region_id}"}), 400
+    if not region_id and not crawl_db.next_region():
+        return jsonify({"error": "All regions are done"}), 400
+
+    with _crawl_job_lock:
+        if _crawl_job["running"]:
+            return jsonify({"error": "A crawl is already running"}), 409
+        _crawl_job.update(running=True, region=region_id, log=[], summary=None, error=None)
+        threading.Thread(target=_run_crawl, args=(region_id,), daemon=True).start()
+    return jsonify({"started": True, "job": _crawl_job}), 202
+
+
+@app.post("/api/regions/<region_id>/reset")
+def api_reset_region(region_id):
+    crawl_db.init_db()
+    if not crawl_db.get_region(region_id):
+        return jsonify({"error": "Unknown region"}), 404
+    crawl_db.reset_region(region_id)
+    return jsonify({"ok": True})
+
+
+@app.post("/api/regions/<region_id>/priority")
+def api_region_priority(region_id):
+    body = request.get_json(silent=True) or {}
+    try:
+        crawl_db.set_priority(region_id, int(body.get("priority", 0)))
+    except (TypeError, ValueError):
+        return jsonify({"error": "priority must be a number"}), 400
+    return jsonify({"ok": True})
+
+
+@app.post("/api/spas/<spa_id>/publish")
+def api_publish_spa(spa_id):
+    """Make a draft live: copy its images to Firebase Storage, make a thumbnail, set status."""
+    spa = get_spa(spa_id)
+    if not spa:
+        return jsonify({"error": "Spa not found"}), 404
+    data = spa["data"]
+    if not (data.get("name") and data.get("slug")):
+        return jsonify({"error": "Name and slug are required before publishing"}), 400
+
+    images = data.get("images") or []
+    if not images:
+        return jsonify({"error": "Add at least one image before publishing"}), 400
+
+    errors = []
+    external = [u for u in images if "firebasestorage" not in u]
+    if external:
+        result = upload_spa_images(spa_id, images)
+        errors = result.get("errors") or []
+        if errors:
+            return jsonify(
+                {"error": "Some images could not be copied; remove them and try again", "errors": errors}
+            ), 502
+        spa = result.get("spa") or get_spa(spa_id)
+        images = spa["data"].get("images") or []
+
+    if not spa["data"].get("thumbnail"):
+        generate_spa_thumbnail(spa_id, images[0])
+
+    updated = update_spa(spa_id, {"status": PUBLISHED})
+    return jsonify(updated)
+
+
+@app.post("/api/spas/<spa_id>/unpublish")
+def api_unpublish_spa(spa_id):
+    if not get_spa(spa_id):
+        return jsonify({"error": "Spa not found"}), 404
+    return jsonify(update_spa(spa_id, {"status": DRAFT}))
 
 
 @app.get("/spa/<spa_id>")
