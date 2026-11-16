@@ -1148,7 +1148,7 @@ body.lightbox-open {
 .region-warning { color: #b7791f; cursor: help; }
 .candidate-draft_created { color: #1e6b2f; font-weight: 600; }
 .candidate-failed { color: #a32020; }
-.candidate-no_website, .candidate-skipped, .candidate-duplicate { color: #777; }
+.candidate-no_website, .candidate-skipped, .candidate-duplicate, .candidate-not_private { color: #777; }
 
 /* Draft badges */
 .spa-draft-badge {

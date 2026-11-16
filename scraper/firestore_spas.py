@@ -316,4 +316,5 @@ def existing_spa_index() -> dict:
             websites[site] = doc.id
         if data.get("slug"):
             slugs.add(data["slug"])
-    return {"place_ids": place_ids, "websites": websites, "slugs": slugs}
+    domains = {site.split("/", 1)[0]: spa_id for site, spa_id in websites.items()}
+    return {"place_ids": place_ids, "websites": websites, "domains": domains, "slugs": slugs}

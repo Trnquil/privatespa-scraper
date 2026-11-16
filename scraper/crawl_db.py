@@ -26,6 +26,7 @@ DUPLICATE = "duplicate"          # already in Firestore (same place or website)
 NO_WEBSITE = "no_website"        # Google has no website for it; add by hand if relevant
 SKIPPED = "skipped"              # outside Switzerland or permanently closed
 FAILED_SCRAPE = "failed"         # website could not be scraped
+NOT_PRIVATE = "not_private"      # the AI judged it is not a private spa (e.g. regular hotel spa)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS regions (

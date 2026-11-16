@@ -359,4 +359,6 @@ if __name__ == "__main__":
     init_firebase()
     # Firestore uses gRPC; Flask's debug reloader forks after init and can deadlock.
     use_reloader = os.environ.get("FLASK_USE_RELOADER", "").lower() in {"1", "true", "yes"}
-    app.run(debug=True, host="127.0.0.1", port=port, use_reloader=use_reloader)
+    # FLASK_DEBUG=0 when running as a service (the debugger allows running code).
+    debug = os.environ.get("FLASK_DEBUG", "1").lower() in {"1", "true", "yes"}
+    app.run(debug=debug, host="127.0.0.1", port=port, use_reloader=use_reloader and debug)

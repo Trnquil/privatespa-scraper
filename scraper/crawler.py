@@ -32,7 +32,7 @@ import crawl_db as db
 from firestore_spas import DRAFT, create_spa, existing_spa_index, normalize_website
 from places_search import search_queries, search_region
 from regions import REGIONS_BY_ID, normalize_canton
-from scrape_spa import extract_slug_from_url, normalize_slug, scrape_url
+from scrape_spa import extract_slug_from_url, find_spa_links, normalize_slug, scrape_url
 
 load_dotenv()
 
@@ -102,7 +102,10 @@ def crawl_region(region_id: str, progress: ProgressFn = print) -> dict:
         # 2. Deduplicate
         index = existing_spa_index()
         seen = db.known_place_ids()
-        counts = {k: 0 for k in (db.DRAFT_CREATED, db.DUPLICATE, db.NO_WEBSITE, db.SKIPPED, db.FAILED_SCRAPE)}
+        counts = {
+            k: 0
+            for k in (db.DRAFT_CREATED, db.NOT_PRIVATE, db.DUPLICATE, db.NO_WEBSITE, db.SKIPPED, db.FAILED_SCRAPE)
+        }
         already_seen = 0
         queue: list[dict] = []
 
@@ -128,26 +131,42 @@ def crawl_region(region_id: str, progress: ProgressFn = print) -> dict:
                 db.upsert_candidate(place, region.id, db.NO_WEBSITE)
                 counts[db.NO_WEBSITE] += 1
                 continue
-            if site in index["websites"]:
-                existing_id = index["websites"][site]
+            domain = site.split("/", 1)[0]
+            if domain in index["domains"]:
+                existing_id = index["domains"][domain]
                 if existing_id is None:  # another result in this crawl has the same website
-                    db.upsert_candidate(place, region.id, db.DUPLICATE, note="Same website as another result in this crawl")
+                    db.upsert_candidate(place, region.id, db.DUPLICATE, note="Same domain as another result in this crawl")
                 else:
                     db.upsert_candidate(
                         place, region.id, db.DUPLICATE,
-                        spa_id=existing_id, note="Same website already in Firestore",
+                        spa_id=existing_id, note="Same domain already in Firestore",
                     )
                 counts[db.DUPLICATE] += 1
                 continue
-            index["websites"][site] = None  # two places with one website: scrape once
+            index["domains"][domain] = None  # two places on one domain: scrape once
             queue.append(place)
 
         # 3 + 4. Scrape and save drafts
         for i, place in enumerate(queue, 1):
             progress(f"Scraping {i}/{len(queue)}: {place.get('name')} ({place['website']})")
             try:
-                scraped = scrape_url(place["website"])["data"]
-                draft = _build_draft(place, scraped, index["slugs"])
+                result = scrape_url(place["website"])
+                if not result.get("is_private_spa"):
+                    # Hotels often describe their private spa on a subpage.
+                    for link in find_spa_links(place["website"]):
+                        progress(f"  checking subpage {link}")
+                        sub = scrape_url(link)
+                        if sub.get("is_private_spa"):
+                            result = sub
+                            break
+                if not result.get("is_private_spa"):
+                    db.upsert_candidate(
+                        place, region.id, db.NOT_PRIVATE,
+                        note=result.get("private_spa_reason") or "Not a private spa",
+                    )
+                    counts[db.NOT_PRIVATE] += 1
+                    continue
+                draft = _build_draft(place, result["data"], index["slugs"])
                 spa = create_spa(draft)
                 db.upsert_candidate(place, region.id, db.DRAFT_CREATED, spa_id=spa["id"])
                 counts[db.DRAFT_CREATED] += 1
@@ -172,7 +191,8 @@ def crawl_region(region_id: str, progress: ProgressFn = print) -> dict:
             **counts,
         }
         progress(
-            f"Done: {counts[db.DRAFT_CREATED]} new drafts, {counts[db.DUPLICATE]} duplicates, "
+            f"Done: {counts[db.DRAFT_CREATED]} new drafts, {counts[db.NOT_PRIVATE]} not private spas, "
+            f"{counts[db.DUPLICATE]} duplicates, "
             f"{counts[db.NO_WEBSITE]} without website, {counts[db.FAILED_SCRAPE]} failed"
             + (" — hit Google's 60-result cap, results may be incomplete" if saturated else "")
         )

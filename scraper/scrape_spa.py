@@ -303,7 +303,8 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
     system_prompt = (
         "You extract spa or wellness venue information from website text. "
         "Return ONLY valid JSON with exactly these keys: "
-        "name, description, amenities, location, canton, coordinates, price_from. "
+        "name, description, amenities, location, canton, coordinates, price_from, "
+        "is_private_spa, private_spa_reason. "
         "name: official venue or offer name, or null if unclear. "
         "description: 1-3 polished sentences in the same language as the website text, "
         "factual and based ONLY on the provided text. "
@@ -318,6 +319,13 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
         "(e.g. geo meta tags or map data), otherwise null. "
         "price_from: lowest starting price as a number in CHF if explicitly mentioned "
         "on the page (e.g. 'ab CHF 150' -> 150), otherwise null. "
+        "is_private_spa: true only if the page offers a private spa, i.e. a spa or "
+        "wellness area (sauna, whirlpool, steam bath, …) that guests book exclusively "
+        "for themselves or their own group, such as a private spa suite, a spa room "
+        "rented by the hour, or accommodation with its own private spa. false for "
+        "ordinary hotels, day spas, public baths, saunas or massage studios where "
+        "the spa is shared with other guests, and false if the page is unrelated. "
+        "private_spa_reason: one short sentence explaining is_private_spa. "
         "Do NOT invent amenities, prices, locations, coordinates, or services. "
         "Return null for description if there is not enough information."
     )
@@ -353,6 +361,8 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
         amenities = [str(a).strip() for a in amenities if a]
 
     return {
+        "is_private_spa": result.get("is_private_spa") is True,
+        "private_spa_reason": result.get("private_spa_reason"),
         "data": {
             "amenities": amenities,
             "canton": result.get("canton"),
@@ -441,6 +451,35 @@ def scrape_url(url: str) -> dict:
         "used_playwright": used_playwright,
         "raw_text_preview": text[:RAW_PREVIEW_LENGTH],
     }
+
+
+SPA_LINK_PATTERNS = [
+    (re.compile(r"priva\w*[\s_-]*spa|spa[\s_-]*priv", re.I), 3),
+    (re.compile(r"spa[\s_-]*suite|wellness[\s_-]*suite|day[\s_-]*spa[\s_-]*suite", re.I), 2),
+    (re.compile(r"\bspa\b|wellness|sauna", re.I), 1),
+]
+
+
+def find_spa_links(url: str, limit: int = 2) -> list[str]:
+    """Links on a page (same site) that most likely lead to its private spa offer."""
+    try:
+        soup = parse_html(fetch_with_httpx(url))
+    except Exception:
+        return []
+    base_host = (urlparse(url).hostname or "").removeprefix("www.")
+    scored: dict[str, int] = {}
+    for a in soup.find_all("a", href=True):
+        href = urljoin(url, a["href"]).split("#")[0]
+        parsed = urlparse(href)
+        if parsed.scheme not in ("http", "https"):
+            continue
+        if (parsed.hostname or "").removeprefix("www.") != base_host or href.rstrip("/") == url.rstrip("/"):
+            continue
+        haystack = f"{a.get_text(' ', strip=True)} {parsed.path}"
+        score = max((weight for pattern, weight in SPA_LINK_PATTERNS if pattern.search(haystack)), default=0)
+        if score:
+            scored[href] = max(score, scored.get(href, 0))
+    return [h for h, _ in sorted(scored.items(), key=lambda kv: -kv[1])][:limit]
 
 
 def main() -> None:
