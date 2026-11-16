@@ -51,6 +51,9 @@ const fields = {
   owner: document.getElementById("owner"),
   contact: document.getElementById("contact"),
   description: document.getElementById("description"),
+  descriptionEn: document.getElementById("description-en"),
+  amenitiesEn: document.getElementById("amenities-en"),
+  country: document.getElementById("country"),
   location: document.getElementById("location"),
   canton: document.getElementById("canton"),
   website: document.getElementById("website"),
@@ -709,6 +712,9 @@ function populateEditor(result, options = {}) {
   fields.owner.value = data.owner || "";
   fields.contact.value = data.contact || "";
   fields.description.value = data.description || "";
+  fields.descriptionEn.value = data.description_en || "";
+  fields.amenitiesEn.value = arrayToLines(data.amenities_en);
+  fields.country.value = data.country || "CH";
   fields.location.value = data.location || "";
   fields.canton.value = data.canton || "";
   fields.website.value = data.website || "";
@@ -773,6 +779,9 @@ function buildSpaPayload() {
   return {
     data: {
       amenities: linesToArray(fields.amenities.value),
+      amenities_en: linesToArray(fields.amenitiesEn.value),
+      country: fields.country.value || "CH",
+      description_en: fields.descriptionEn.value.trim() || null,
       canton: fields.canton.value.trim() || null,
       contact: fields.contact.value.trim() || null,
       coordinates,

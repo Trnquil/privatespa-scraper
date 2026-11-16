@@ -9,9 +9,12 @@ from firebase_client import init_firebase
 # Fields stored on the public `spas/{id}` document (readable by anyone).
 SPA_FIELDS = (
     "amenities",
+    "amenities_en",
     "canton",
     "coordinates",
+    "country",
     "description",
+    "description_en",
     "images",
     "location",
     "name",
@@ -39,8 +42,9 @@ DEFAULT_SPA_VALUES = {
 }
 
 COMPLETENESS_EXCLUDED = frozenset(
-    {"premium", "thumbnail", "owner", "status", "google_place_id", "source"}
+    {"premium", "thumbnail", "owner", "status", "google_place_id", "source", "amenities_en"}
 )
+COUNTRIES = ("CH", "DE", "AT")
 
 
 def get_db():
@@ -147,6 +151,9 @@ def _spa_to_editor_payload(doc_id: str, data: dict, private: dict | None = None)
         "id": doc_id,
         "data": {
             "amenities": list(data.get("amenities") or []),
+            "amenities_en": list(data.get("amenities_en") or []),
+            "country": data.get("country") or "CH",
+            "description_en": data.get("description_en"),
             "canton": data.get("canton"),
             "contact": _normalize_string(private.get("contact")),
             "coordinates": _normalize_coordinates(data.get("coordinates")),
@@ -235,8 +242,13 @@ def _build_spa_payload(data: dict) -> dict:
             if value not in STATUSES:
                 raise ValueError(f"Invalid status: {value!r}")
             payload[field] = value
-        elif field in ("amenities", "images"):
+        elif field in ("amenities", "amenities_en", "images"):
             payload[field] = list(value or [])
+        elif field == "country":
+            value = (value or "CH").upper()
+            if value not in COUNTRIES:
+                raise ValueError(f"Invalid country: {value!r}")
+            payload[field] = value
         else:
             payload[field] = value
     return payload

@@ -60,6 +60,8 @@ def _build_draft(place: dict, scraped: dict, taken_slugs: set[str]) -> dict:
     data["location"] = data.get("location") or place.get("address")
     # Google's canton and coordinates come from its address data and beat the AI's guess.
     data["canton"] = place.get("canton") or normalize_canton(data.get("canton")) or data.get("canton")
+    if place.get("country") in ("CH", "DE", "AT"):
+        data["country"] = place["country"]
     if place.get("lat") is not None and place.get("lng") is not None:
         data["coordinates"] = [place["lat"], place["lng"]]
     base_slug = (

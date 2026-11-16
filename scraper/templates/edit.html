@@ -89,6 +89,15 @@
           </div>
         </div>
 
+        <div class="field">
+          <label for="country">Country</label>
+          <select id="country">
+            <option value="CH">Switzerland</option>
+            <option value="DE">Germany</option>
+            <option value="AT">Austria</option>
+          </select>
+        </div>
+
         <div class="field-row">
           <div class="field">
             <label for="owner">Owner</label>
@@ -101,8 +110,13 @@
         </div>
 
         <div class="field">
-          <label for="description">Description</label>
+          <label for="description">Description (German)</label>
           <textarea id="description" rows="4"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="description-en">Description (English)</label>
+          <textarea id="description-en" rows="4"></textarea>
         </div>
 
         <div class="field-row">
@@ -144,9 +158,15 @@
           </div>
         </div>
 
-        <div class="field">
-          <label>Amenities <span class="hint">(one per line)</span></label>
-          <textarea id="amenities" rows="6"></textarea>
+        <div class="field-row">
+          <div class="field">
+            <label>Amenities (German) <span class="hint">(one per line)</span></label>
+            <textarea id="amenities" rows="6"></textarea>
+          </div>
+          <div class="field">
+            <label>Amenities (English) <span class="hint">(same order)</span></label>
+            <textarea id="amenities-en" rows="6"></textarea>
+          </div>
         </div>
 
         <div class="field">

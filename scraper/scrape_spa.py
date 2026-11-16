@@ -304,7 +304,8 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
         "You extract spa or wellness venue information from website text. "
         "Return ONLY valid JSON with exactly these keys: "
         "name, description, amenities, location, canton, coordinates, price_from, "
-        "is_private_spa, private_spa_reason. "
+        "is_private_spa, private_spa_reason, description_de, description_en, "
+        "amenities_de, amenities_en, country. "
         "name: official venue or offer name, or null if unclear. "
         "description: 1-3 polished sentences in the same language as the website text, "
         "factual and based ONLY on the provided text. "
@@ -326,6 +327,10 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
         "ordinary hotels, day spas, public baths, saunas or massage studios where "
         "the spa is shared with other guests, and false if the page is unrelated. "
         "private_spa_reason: one short sentence explaining is_private_spa. "
+        "description_de and description_en: the description in German and in natural "
+        "British English (same facts). amenities_de and amenities_en: the same amenity "
+        "list in German and in English, in the same order; keep brand and place names. "
+        "country: ISO code of the venue's country (CH, DE or AT), or null. "
         "Do NOT invent amenities, prices, locations, coordinates, or services. "
         "Return null for description if there is not enough information."
     )
@@ -354,20 +359,24 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
     if not isinstance(result, dict):
         raise ValueError("OpenAI response is not a JSON object")
 
-    amenities = result.get("amenities")
-    if not isinstance(amenities, list):
-        amenities = []
-    else:
-        amenities = [str(a).strip() for a in amenities if a]
+    def _str_list(value):
+        return [str(a).strip() for a in value if a] if isinstance(value, list) else []
+
+    amenities = _str_list(result.get("amenities_de")) or _str_list(result.get("amenities"))
+    amenities_en = _str_list(result.get("amenities_en"))
+    country = (result.get("country") or "").upper()
 
     return {
         "is_private_spa": result.get("is_private_spa") is True,
         "private_spa_reason": result.get("private_spa_reason"),
         "data": {
             "amenities": amenities,
+            "amenities_en": amenities_en,
+            "country": country if country in ("CH", "DE", "AT") else None,
+            "description_en": result.get("description_en"),
             "canton": result.get("canton"),
             "coordinates": _normalize_coordinates(result.get("coordinates")),
-            "description": result.get("description"),
+            "description": result.get("description_de") or result.get("description"),
             "images": image_urls,
             "location": result.get("location"),
             "name": result.get("name"),
