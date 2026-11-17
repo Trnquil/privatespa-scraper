@@ -238,6 +238,10 @@ def _build_spa_payload(data: dict) -> dict:
             payload[field] = _normalize_price_from(value)
         elif field in ("owner", "google_place_id", "source"):
             payload[field] = _normalize_string(value)
+        elif field == "slug":
+            from scrape_spa import normalize_slug
+
+            payload[field] = normalize_slug(value or "")
         elif field == "status":
             if value not in STATUSES:
                 raise ValueError(f"Invalid status: {value!r}")

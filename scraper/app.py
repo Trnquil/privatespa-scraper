@@ -24,6 +24,7 @@ from firestore_spas import (
 )
 from image_info import get_image_info
 from rescrape import rescrape_missing_fields
+from website import refresh_website
 from scrape_spa import scrape_url
 from storage_images import (
     generate_all_spa_thumbnails,
@@ -151,6 +152,7 @@ def api_publish_spa(spa_id):
     updated = update_spa(spa_id, {"status": PUBLISHED})
     crawl_db.init_db()
     crawl_db.mark_spa_reviewed(spa_id, crawl_db.ACCEPTED)
+    refresh_website()
     return jsonify(updated)
 
 
@@ -172,7 +174,9 @@ def api_reject_draft(spa_id):
 def api_unpublish_spa(spa_id):
     if not get_spa(spa_id):
         return jsonify({"error": "Spa not found"}), 404
-    return jsonify(update_spa(spa_id, {"status": DRAFT}))
+    updated = update_spa(spa_id, {"status": DRAFT})
+    refresh_website()
+    return jsonify(updated)
 
 
 @app.get("/spa/<spa_id>")
@@ -255,6 +259,8 @@ def api_update_spa(spa_id):
 
     try:
         spa = update_spa(spa_id, data)
+        if spa["data"].get("status") == PUBLISHED:
+            refresh_website()
         return jsonify(spa)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -286,7 +292,10 @@ def api_delete_spa(spa_id):
         return jsonify({"error": 'Type DELETE to confirm deletion'}), 400
 
     try:
+        was_live = (get_spa(spa_id) or {}).get("data", {}).get("status") == PUBLISHED
         result = delete_spa(spa_id)
+        if was_live:
+            refresh_website()
         return jsonify(result)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

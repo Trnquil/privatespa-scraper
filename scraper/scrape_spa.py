@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ipaddress
+import unicodedata
 import json
 import re
 import sys
@@ -79,7 +80,11 @@ def normalize_slug(value: str) -> str | None:
     if not value:
         return None
     slug = value.lower().strip()
-    slug = re.sub(r"[^\w\-]+", "-", slug)
+    # Same rules as the website: umlauts become ae/oe/ue, then only a-z, 0-9 and dashes.
+    for src, dst in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        slug = slug.replace(src, dst)
+    slug = unicodedata.normalize("NFKD", slug).encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^a-z0-9\-]+", "-", slug)
     slug = re.sub(r"-+", "-", slug).strip("-")
     return slug or None
 
