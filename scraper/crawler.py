@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Crawl Swiss cantons for private spas and save new ones as Firestore drafts.
+"""Crawl Swiss cantons and German/Austrian states for private spas; save new ones as drafts.
 
 For one region:
   1. Search Google Places for each phrase in CRAWL_QUERIES (default "private spa").
   2. Skip places already seen, already in Firestore (same Google place or same
-     website), outside Switzerland, permanently closed, or without a website.
+     website), outside CH/DE/AT, permanently closed, or without a website.
   3. Scrape each remaining website with the existing scraper (OpenAI extraction).
   4. Save it to Firestore with status "draft", so it does not appear on the
      website until you publish it in the editor.
@@ -14,7 +14,7 @@ Everything is recorded in crawl.db (see crawl_db.py).
 CLI:
   python crawler.py status            show all regions
   python crawler.py next              crawl the next todo region
-  python crawler.py run <region-id>   crawl a specific region (e.g. zh)
+  python crawler.py run <region-id>   crawl a specific region (e.g. zh, de-by, at-t)
   python crawler.py reset <region-id> mark a region as todo again
   python crawler.py priority <region-id> <n>   higher runs first
   python crawler.py candidates [<region-id>]   list what was found
@@ -31,7 +31,7 @@ from dotenv import load_dotenv
 import crawl_db as db
 from firestore_spas import DRAFT, create_spa, existing_spa_index, normalize_website
 from places_search import search_queries, search_region
-from regions import REGIONS_BY_ID, normalize_canton
+from regions import COUNTRY_NAMES, REGIONS_BY_ID, normalize_region
 from scrape_spa import extract_slug_from_url, find_spa_links, normalize_slug, scrape_url
 
 load_dotenv()
@@ -59,9 +59,12 @@ def _build_draft(place: dict, scraped: dict, taken_slugs: set[str]) -> dict:
     data["name"] = data.get("name") or place.get("name")
     data["location"] = data.get("location") or place.get("address")
     # Google's canton and coordinates come from its address data and beat the AI's guess.
-    data["canton"] = place.get("canton") or normalize_canton(data.get("canton")) or data.get("canton")
-    if place.get("country") in ("CH", "DE", "AT"):
-        data["country"] = place["country"]
+    country = place.get("country") if place.get("country") in COUNTRY_NAMES else data.get("country")
+    data["country"] = country or "CH"
+    # Google's region and coordinates come from its address data and beat the AI's guess.
+    data["canton"] = (
+        place.get("canton") or normalize_region(data["country"], data.get("canton")) or data.get("canton")
+    )
     if place.get("lat") is not None and place.get("lng") is not None:
         data["coordinates"] = [place["lat"], place["lng"]]
     base_slug = (
@@ -116,8 +119,8 @@ def crawl_region(region_id: str, progress: ProgressFn = print) -> dict:
             if pid in seen:
                 already_seen += 1  # found in an earlier crawl, outcome already recorded
                 continue
-            if place.get("country") and place["country"] != "CH":
-                db.upsert_candidate(place, region.id, db.SKIPPED, note=f"Outside Switzerland ({place['country']})")
+            if place.get("country") and place["country"] not in COUNTRY_NAMES:
+                db.upsert_candidate(place, region.id, db.SKIPPED, note=f"Outside CH/DE/AT ({place['country']})")
                 counts[db.SKIPPED] += 1
                 continue
             if place.get("business_status") == "CLOSED_PERMANENTLY":
@@ -217,11 +220,11 @@ def crawl_next(progress: ProgressFn = print) -> dict | None:
 
 def _print_status() -> None:
     db.init_db()
-    print(f"{'id':<4} {'canton':<24} {'status':<8} {'last crawl':<20} {'found':>5} {'drafts':>6}")
+    print(f"{'id':<6} {'region':<24} {'status':<8} {'last crawl':<20} {'found':>5} {'drafts':>6}")
     for r in db.list_regions():
         flag = "  ⚠ 60-cap" if r["saturated"] else ""
         print(
-            f"{r['id']:<4} {r['name']:<24} {r['status']:<8} {(r['last_crawled'] or '-')[:16]:<20} "
+            f"{r['id']:<6} {r['name']:<24} {r['status']:<8} {(r['last_crawled'] or '-')[:16]:<20} "
             f"{r['results'] if r['results'] is not None else '-':>5} {r['drafts'] if r['drafts'] is not None else '-':>6}{flag}"
         )
 

@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from regions import CANTON_REGIONS
+from regions import REGIONS
 
 DB_PATH = Path(os.environ.get("CRAWL_DB_PATH", Path(__file__).resolve().parent / "crawl.db"))
 
@@ -82,7 +82,7 @@ def init_db() -> None:
         conn.executescript(SCHEMA)
         conn.executemany(
             "INSERT OR IGNORE INTO regions (id, name) VALUES (?, ?)",
-            [(r.id, r.name) for r in CANTON_REGIONS],
+            [(r.id, r.name) for r in REGIONS],
         )
         # A crash mid-crawl leaves a region 'running'; make it retryable.
         conn.execute("UPDATE regions SET status = ? WHERE status = ?", (TODO, RUNNING))

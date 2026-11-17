@@ -13,7 +13,7 @@
         <h1>Regions</h1>
       </header>
       <p class="hint">
-        Each crawl searches Google for “private spa” in one canton, skips spas you already
+        Each crawl searches Google for “private spa” in one canton or federal state, skips spas you already
         have, scrapes the rest and saves them as <strong>drafts</strong>. Drafts are not shown
         on privatespa.com until you publish them in the editor.
       </p>
@@ -30,10 +30,17 @@
 
       <div id="status" class="status hidden"></div>
 
+      <div class="spa-filter" id="country-filter" role="group" aria-label="Country">
+        <button type="button" class="secondary-btn active" data-country="">All</button>
+        <button type="button" class="secondary-btn" data-country="CH">🇨🇭 Switzerland</button>
+        <button type="button" class="secondary-btn" data-country="DE">🇩🇪 Germany</button>
+        <button type="button" class="secondary-btn" data-country="AT">🇦🇹 Austria</button>
+      </div>
+
       <table class="regions-table">
         <thead>
           <tr>
-            <th>Canton</th>
+            <th>Region</th>
             <th>Status</th>
             <th>Last crawl</th>
             <th class="num">Found</th>

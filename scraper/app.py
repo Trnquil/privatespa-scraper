@@ -8,6 +8,7 @@ import httpx
 from flask import Flask, jsonify, render_template, request
 
 import crawl_db
+from regions import REGIONS_BY_ID
 from crawler import crawl_next, crawl_region
 
 from firebase_client import init_firebase
@@ -68,7 +69,10 @@ def regions_page():
 @app.get("/api/regions")
 def api_regions():
     crawl_db.init_db()
-    return jsonify({"regions": crawl_db.list_regions(), "job": _crawl_job})
+    regions = crawl_db.list_regions()
+    for r in regions:
+        r["country"] = REGIONS_BY_ID[r["id"]].country if r["id"] in REGIONS_BY_ID else "CH"
+    return jsonify({"regions": regions, "job": _crawl_job})
 
 
 @app.get("/api/regions/<region_id>/candidates")

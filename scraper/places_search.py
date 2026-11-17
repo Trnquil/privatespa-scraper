@@ -12,7 +12,7 @@ import time
 
 import httpx
 
-from regions import Region, normalize_canton
+from regions import Region, normalize_region
 
 SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 FIELD_MASK = ",".join(
@@ -46,14 +46,19 @@ def _component(place: dict, type_name: str, text: str = "shortText") -> str | No
 
 def _normalize_place(place: dict) -> dict:
     location = place.get("location") or {}
+    country = _component(place, "country")
+    # Google gives "ZH"/"BY" as short text and "Tirol"/"Bayern" as long text; try both.
+    region = normalize_region(country, _component(place, "administrative_area_level_1")) or normalize_region(
+        country, _component(place, "administrative_area_level_1", "longText")
+    )
     return {
         "place_id": place.get("id"),
         "name": (place.get("displayName") or {}).get("text"),
         "address": place.get("formattedAddress"),
         "website": place.get("websiteUri"),
         "business_status": place.get("businessStatus"),
-        "country": _component(place, "country"),
-        "canton": normalize_canton(_component(place, "administrative_area_level_1")),
+        "country": country,
+        "canton": region,
         "lat": location.get("latitude"),
         "lng": location.get("longitude"),
     }
@@ -74,7 +79,7 @@ def search_region(region: Region, query: str) -> tuple[list[dict], bool]:
         "textQuery": query,
         "pageSize": 20,
         "languageCode": "de",
-        "regionCode": "CH",
+        "regionCode": region.country,
         "locationRestriction": {
             "rectangle": {
                 "low": {"latitude": region.south, "longitude": region.west},

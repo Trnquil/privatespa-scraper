@@ -118,7 +118,9 @@ When editing a spa, use **Save to Firebase** to persist changes. New scraped spa
 
 ## Crawling regions (finding new spas automatically)
 
-The crawler searches Google for "private spa" one canton at a time, skips spas
+The crawler searches Google for "private spa" one region at a time (26 Swiss
+cantons, 16 German and 9 Austrian federal states; ids like `zh`, `de-by`,
+`at-t`), skips spas
 you already have, scrapes the rest with the scraper above, and saves them to
 Firestore as **drafts**. Drafts are not shown on privatespa.com until you
 publish them.
@@ -147,8 +149,11 @@ In the web UI, open **Regions** (`/regions`):
 - **Priority:** higher numbers are crawled first.
 - **Mark todo** queues a canton again. Places already handled are not
   re-added; failed scrapes are retried.
-- ⚠ next to a canton means Google returned its maximum of 60 results, so
-  some spas may be missing.
+- ⚠ next to a region means Google returned its maximum of 60 results, so
+  some spas may be missing. Large German states (Bayern, NRW, BW) will likely
+  hit this; splitting them into districts is the fix if it matters.
+- Websites can be German or English; the AI always writes the description and
+  amenities in both languages, and the country and region come from Google.
 
 Then go through the **Drafts** filter on the home page, fix anything the AI
 got wrong, remove bad images, and click **Publish**. Publishing copies the

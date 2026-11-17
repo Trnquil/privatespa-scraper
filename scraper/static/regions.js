@@ -21,6 +21,17 @@ const CANDIDATE_LABELS = {
 };
 
 let pollTimer = null;
+let countryFilter = "";
+let lastData = null;
+const FLAGS = { CH: "🇨🇭", DE: "🇩🇪", AT: "🇦🇹" };
+
+document.querySelectorAll("#country-filter button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    countryFilter = btn.dataset.country;
+    document.querySelectorAll("#country-filter button").forEach((b) => b.classList.toggle("active", b === btn));
+    if (lastData) renderRegions(lastData.regions, lastData.job);
+  });
+});
 
 function setStatus(message, type = "error") {
   statusEl.textContent = message;
@@ -53,11 +64,13 @@ async function api(path, options = {}) {
   return result;
 }
 
-function renderRegions(regions, job) {
+function renderRegions(allRegions, job) {
+  lastData = { regions: allRegions, job };
+  const regions = countryFilter ? allRegions.filter((r) => r.country === countryFilter) : allRegions;
   const done = regions.filter((r) => r.status === "done").length;
   const drafts = regions.reduce((sum, r) => sum + (r.drafts || 0), 0);
   const next = regions.find((r) => r.status === "todo");
-  summaryEl.textContent = `${done} of ${regions.length} cantons done · ${drafts} drafts created · next: ${
+  summaryEl.textContent = `${done} of ${regions.length} regions done · ${drafts} drafts created · next: ${
     next ? next.name : "none"
   }`;
   crawlNextBtn.disabled = job.running || !next;
@@ -67,7 +80,7 @@ function renderRegions(regions, job) {
     const tr = document.createElement("tr");
 
     const nameTd = el("td");
-    const nameBtn = el("button", r.name, "link-btn");
+    const nameBtn = el("button", `${FLAGS[r.country] || ""} ${r.name}`, "link-btn");
     nameBtn.title = "Show what was found";
     nameBtn.addEventListener("click", () => showCandidates(r));
     nameTd.appendChild(nameBtn);
