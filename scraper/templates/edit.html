@@ -72,6 +72,54 @@
         </div>
 
         <div class="field">
+          <label>Images <span class="hint">(drag ⋮⋮ into gaps)</span></label>
+          <div id="image-list" class="image-list"></div>
+          <div class="add-image-row">
+            <input
+              type="text"
+              id="new-image-url"
+              placeholder="https://example.com/image.jpg"
+            />
+            <button type="button" id="add-image-btn">Add image</button>
+          </div>
+          <div class="upload-images-row">
+            <button
+              type="button"
+              id="upload-images-btn"
+              class="upload-btn"
+              disabled
+            >
+              Convert & Upload
+            </button>
+            <span id="upload-status" class="upload-status hidden"></span>
+            <button
+              type="button"
+              id="generate-thumbnail-btn"
+              class="thumbnail-btn"
+              disabled
+            >
+              Generate thumbnail
+            </button>
+            <span id="thumbnail-status" class="thumbnail-status hidden"></span>
+          </div>
+        </div>
+
+        <div class="field" id="thumbnail-field">
+          <label>Thumbnail</label>
+          <div id="thumbnail-preview" class="thumbnail-preview">
+            <p id="thumbnail-empty" class="thumbnail-empty">
+              No thumbnail yet. Generate one from the first image above.
+            </p>
+            <img
+              id="thumbnail-img"
+              class="thumbnail-img hidden"
+              alt="Spa thumbnail"
+            />
+            <span id="thumbnail-meta" class="thumbnail-meta hidden"></span>
+          </div>
+        </div>
+
+        <div class="field">
           <label for="name">Name</label>
           <input type="text" id="name" />
         </div>
@@ -166,54 +214,6 @@
           <div class="field">
             <label>Amenities (English) <span class="hint">(same order)</span></label>
             <textarea id="amenities-en" rows="6"></textarea>
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Images <span class="hint">(drag ⋮⋮ into gaps)</span></label>
-          <div id="image-list" class="image-list"></div>
-          <div class="add-image-row">
-            <input
-              type="text"
-              id="new-image-url"
-              placeholder="https://example.com/image.jpg"
-            />
-            <button type="button" id="add-image-btn">Add image</button>
-          </div>
-          <div class="upload-images-row">
-            <button
-              type="button"
-              id="upload-images-btn"
-              class="upload-btn"
-              disabled
-            >
-              Convert & Upload
-            </button>
-            <span id="upload-status" class="upload-status hidden"></span>
-            <button
-              type="button"
-              id="generate-thumbnail-btn"
-              class="thumbnail-btn"
-              disabled
-            >
-              Generate thumbnail
-            </button>
-            <span id="thumbnail-status" class="thumbnail-status hidden"></span>
-          </div>
-        </div>
-
-        <div class="field" id="thumbnail-field">
-          <label>Thumbnail</label>
-          <div id="thumbnail-preview" class="thumbnail-preview">
-            <p id="thumbnail-empty" class="thumbnail-empty">
-              No thumbnail yet. Generate one from the first image above.
-            </p>
-            <img
-              id="thumbnail-img"
-              class="thumbnail-img hidden"
-              alt="Spa thumbnail"
-            />
-            <span id="thumbnail-meta" class="thumbnail-meta hidden"></span>
           </div>
         </div>
 
