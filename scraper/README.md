@@ -118,7 +118,8 @@ When editing a spa, use **Save to Firebase** to persist changes. New scraped spa
 
 ## Crawling regions (finding new spas automatically)
 
-The crawler searches Google for "private spa" one region at a time (26 Swiss
+The crawler searches Google for "private spa", "privatspa", "wellness suite"
+and "romantik zimmer whirlpool" (top 20 results each) one region at a time (26 Swiss
 cantons, 16 German and 9 Austrian federal states; ids like `zh`, `de-by`,
 `at-t`), skips spas
 you already have, scrapes the rest with the scraper above, and saves them to
@@ -149,9 +150,8 @@ In the web UI, open **Regions** (`/regions`):
 - **Priority:** higher numbers are crawled first.
 - **Mark todo** queues a canton again. Places already handled are not
   re-added; failed scrapes are retried.
-- ⚠ next to a region means Google returned its maximum of 60 results, so
-  some spas may be missing. Large German states (Bayern, NRW, BW) will likely
-  hit this; splitting them into districts is the fix if it matters.
+- ⚠ next to a region means Google had more than 20 results for at least one
+  phrase, so lower-ranked places were not looked at.
 - Websites can be German or English; the AI always writes the description and
   amenities in both languages, and the country and region come from Google.
 
@@ -175,7 +175,7 @@ Back it up if you move machines.
 Optional `.env` settings:
 
 ```
-CRAWL_QUERIES=private spa            # comma-separated search phrases
+CRAWL_QUERIES=private spa, privatspa  # override the search phrases (comma-separated)
 CRAWL_DB_PATH=/path/to/crawl.db
 ```
 

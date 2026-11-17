@@ -2,7 +2,8 @@
 """Crawl Swiss cantons and German/Austrian states for private spas; save new ones as drafts.
 
 For one region:
-  1. Search Google Places for each phrase in CRAWL_QUERIES (default "private spa").
+  1. Search Google Places for each phrase in CRAWL_QUERIES (default: "private spa",
+     "privatspa", "wellness suite", "romantik zimmer whirlpool"), top 20 each.
   2. Skip places already seen, already in Firestore (same Google place or same
      website), outside CH/DE/AT, permanently closed, or without a website.
   3. Scrape each remaining website with the existing scraper (OpenAI extraction).
@@ -199,7 +200,7 @@ def crawl_region(region_id: str, progress: ProgressFn = print) -> dict:
             f"Done: {counts[db.DRAFT_CREATED]} new drafts, {counts[db.NOT_PRIVATE]} not private spas, "
             f"{counts[db.DUPLICATE]} duplicates, "
             f"{counts[db.NO_WEBSITE]} without website, {counts[db.FAILED_SCRAPE]} failed"
-            + (" — hit Google's 60-result cap, results may be incomplete" if saturated else "")
+            + (" — Google had more than 20 results for some phrases" if saturated else "")
         )
         return summary
     except Exception as e:

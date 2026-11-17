@@ -1,8 +1,9 @@
 """Find spas in a region with the Google Places API (New) Text Search.
 
 Requires "Places API (New)" to be enabled for GOOGLE_MAPS_API_KEY in the
-Google Cloud console. One call returns up to 20 places; we follow the next
-page token up to 3 pages (Google's maximum of 60 results per search).
+Google Cloud console. Each region is searched with several phrases, and for
+each phrase only Google's top 20 results are used (one page): the most
+relevant hits per phrase, at one request per phrase and region.
 """
 
 from __future__ import annotations
@@ -27,13 +28,13 @@ FIELD_MASK = ",".join(
         "nextPageToken",
     ]
 )
-MAX_PAGES = 3
-GOOGLE_RESULT_CAP = 60
+MAX_PAGES = 1  # top 20 per phrase
+DEFAULT_QUERIES = "private spa, privatspa, wellness suite, romantik zimmer whirlpool"
 
 
 def search_queries() -> list[str]:
     """Search phrases, configurable via CRAWL_QUERIES (comma separated)."""
-    raw = os.environ.get("CRAWL_QUERIES", "private spa")
+    raw = os.environ.get("CRAWL_QUERIES", DEFAULT_QUERIES)
     return [q.strip() for q in raw.split(",") if q.strip()]
 
 
@@ -67,8 +68,8 @@ def _normalize_place(place: dict) -> dict:
 def search_region(region: Region, query: str) -> tuple[list[dict], bool]:
     """Search one phrase in one region.
 
-    Returns (places, saturated). `saturated` means Google returned its maximum
-    of 60 results, so some places may have been cut off.
+    Returns (places, more_available). `more_available` means Google had more
+    results than the top 20 we take.
     """
     api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
     if not api_key:
@@ -89,6 +90,7 @@ def search_region(region: Region, query: str) -> tuple[list[dict], bool]:
     }
 
     places: list[dict] = []
+    more_available = False
     with httpx.Client(timeout=30) as client:
         for page in range(MAX_PAGES):
             response = client.post(SEARCH_URL, headers=headers, json=body)
@@ -101,7 +103,10 @@ def search_region(region: Region, query: str) -> tuple[list[dict], bool]:
             token = data.get("nextPageToken")
             if not token:
                 break
+            if page == MAX_PAGES - 1:
+                more_available = True
+                break
             body = {**body, "pageToken": token}
             time.sleep(1)  # the next page token needs a moment to become valid
 
-    return places, len(places) >= GOOGLE_RESULT_CAP
+    return places, more_available

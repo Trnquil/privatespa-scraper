@@ -90,7 +90,7 @@ function renderRegions(allRegions, job) {
     statusTd.appendChild(el("span", r.status, `region-status region-${r.status}`));
     if (r.saturated) {
       const warn = el("span", " ⚠", "region-warning");
-      warn.title = "Google returned its maximum of 60 results; some spas may be missing";
+      warn.title = "Google had more than the top 20 results for at least one search phrase";
       statusTd.appendChild(warn);
     }
     if (r.error) statusTd.title = r.error;
