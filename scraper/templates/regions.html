@@ -21,7 +21,18 @@
 
       <section class="crawl-panel">
         <div class="crawl-summary" id="crawl-summary"></div>
-        <button type="button" id="crawl-next-btn" class="save-btn">Crawl next region</button>
+        <div class="crawl-buttons">
+          <button type="button" id="queue-selected-btn" class="save-btn" disabled>Queue selected</button>
+          <button type="button" id="crawl-next-btn" class="secondary-btn">Queue next region</button>
+        </div>
+      </section>
+
+      <section id="crawl-queue" class="crawl-queue hidden">
+        <div class="crawl-queue-header">
+          <h2>Queue</h2>
+          <button type="button" id="clear-queue-btn" class="secondary-btn">Clear waiting</button>
+        </div>
+        <ol id="crawl-queue-list"></ol>
       </section>
 
       <section id="crawl-job" class="crawl-job hidden">
@@ -41,6 +52,7 @@
       <table class="regions-table">
         <thead>
           <tr>
+            <th class="check"><input type="checkbox" id="select-all" title="Select all shown" /></th>
             <th>Region</th>
             <th>Status</th>
             <th>Last crawl</th>

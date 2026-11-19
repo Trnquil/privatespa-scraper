@@ -9,7 +9,7 @@ from flask import Flask, jsonify, render_template, request
 
 import crawl_db
 from regions import REGIONS_BY_ID
-from crawler import crawl_next, crawl_region
+from crawler import crawl_region
 
 from firebase_client import init_firebase
 from firestore_spas import (
@@ -35,26 +35,51 @@ from storage_images import (
 app = Flask(__name__)
 
 # State of the background crawl job (one at a time).
-_crawl_job: dict = {"running": False, "region": None, "log": [], "summary": None, "error": None}
+# Background crawl queue: regions are crawled one after another.
+_crawl_job: dict = {
+    "running": False,
+    "region": None,  # region being crawled now
+    "queue": [],  # region ids waiting
+    "log": [],
+    "summary": None,  # summary of the last finished region
+    "error": None,
+}
 _crawl_job_lock = threading.Lock()
 
 
 def _log(message: str) -> None:
     _crawl_job["log"].append(f"{datetime.now():%H:%M:%S}  {message}")
-    del _crawl_job["log"][:-200]
+    del _crawl_job["log"][:-500]
 
 
-def _run_crawl(region_id: str | None) -> None:
-    try:
-        if region_id:
+def _run_queue() -> None:
+    """Work through the queue until it is empty."""
+    while True:
+        with _crawl_job_lock:
+            if not _crawl_job["queue"]:
+                _crawl_job.update(running=False, region=None)
+                return
+            region_id = _crawl_job["queue"].pop(0)
+            _crawl_job["region"] = region_id
+        try:
             _crawl_job["summary"] = crawl_region(region_id, progress=_log)
-        else:
-            _crawl_job["summary"] = crawl_next(progress=_log)
-    except Exception as e:
-        _crawl_job["error"] = str(e)
-        _log(f"Error: {e}")
-    finally:
-        _crawl_job["running"] = False
+        except Exception as e:
+            _crawl_job["error"] = str(e)
+            _log(f"Error in {region_id}: {e}")
+
+
+def _enqueue(region_ids: list[str]) -> list[str]:
+    """Add regions to the queue (skipping duplicates) and start the worker if idle."""
+    added = []
+    with _crawl_job_lock:
+        for rid in region_ids:
+            if rid != _crawl_job["region"] and rid not in _crawl_job["queue"]:
+                _crawl_job["queue"].append(rid)
+                added.append(rid)
+        if added and not _crawl_job["running"]:
+            _crawl_job.update(running=True, log=[], summary=None, error=None)
+            threading.Thread(target=_run_queue, daemon=True).start()
+    return added
 
 
 @app.get("/")
@@ -84,21 +109,35 @@ def api_region_candidates(region_id):
 
 @app.post("/api/crawl")
 def api_start_crawl():
-    """Start a crawl in the background: {"region": "zh"} or {} for the next todo region."""
+    """Queue regions: {"regions": ["zh", "de-by"]}, {"region": "zh"}, or {} for the next todo region."""
     body = request.get_json(silent=True) or {}
-    region_id = (body.get("region") or "").strip() or None
     crawl_db.init_db()
-    if region_id and not crawl_db.get_region(region_id):
-        return jsonify({"error": f"Unknown region: {region_id}"}), 400
-    if not region_id and not crawl_db.next_region():
-        return jsonify({"error": "All regions are done"}), 400
+    ids = [str(r).strip() for r in body.get("regions") or [] if str(r).strip()]
+    if body.get("region"):
+        ids.append(str(body["region"]).strip())
+    if not ids:
+        nxt = crawl_db.next_region()
+        if not nxt:
+            return jsonify({"error": "All regions are done"}), 400
+        ids = [nxt["id"]]
+    unknown = [r for r in ids if not crawl_db.get_region(r)]
+    if unknown:
+        return jsonify({"error": f"Unknown region(s): {', '.join(unknown)}"}), 400
+    added = _enqueue(ids)
+    return jsonify({"queued": added, "job": _crawl_job}), 202
 
+
+@app.post("/api/crawl/unqueue")
+def api_unqueue():
+    """Remove a waiting region from the queue: {"region": "zh"}; {} clears the whole queue."""
+    body = request.get_json(silent=True) or {}
+    rid = (body.get("region") or "").strip()
     with _crawl_job_lock:
-        if _crawl_job["running"]:
-            return jsonify({"error": "A crawl is already running"}), 409
-        _crawl_job.update(running=True, region=region_id, log=[], summary=None, error=None)
-        threading.Thread(target=_run_crawl, args=(region_id,), daemon=True).start()
-    return jsonify({"started": True, "job": _crawl_job}), 202
+        if rid:
+            _crawl_job["queue"] = [r for r in _crawl_job["queue"] if r != rid]
+        else:
+            _crawl_job["queue"] = []
+    return jsonify({"job": _crawl_job})
 
 
 @app.post("/api/regions/<region_id>/reset")

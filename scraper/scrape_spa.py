@@ -312,7 +312,7 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
         "description_en and amenities_en in English. "
         "Return ONLY valid JSON with exactly these keys: "
         "name, description, amenities, location, canton, coordinates, price_from, "
-        "is_private_spa, private_spa_reason, description_de, description_en, "
+        "is_private_spa, private_spa_evidence, private_spa_reason, description_de, description_en, "
         "amenities_de, amenities_en, country. "
         "name: official venue or offer name, or null if unclear. "
         "description: 1-3 polished sentences in the same language as the website text, "
@@ -331,12 +331,25 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
         "price_from: lowest starting price as a number, if explicitly mentioned "
         "on the page, in the page's currency (CHF in Switzerland, EUR in Germany and Austria; "
         "e.g. 'ab CHF 150' -> 150, 'ab 180 €' -> 180), otherwise null. "
-        "is_private_spa: true only if the page offers a private spa, i.e. a spa or "
-        "wellness area (sauna, whirlpool, steam bath, …) that guests book exclusively "
-        "for themselves or their own group, such as a private spa suite, a spa room "
-        "rented by the hour, or accommodation with its own private spa. false for "
-        "ordinary hotels, day spas, public baths, saunas or massage studios where "
-        "the spa is shared with other guests, and false if the page is unrelated. "
+        "is_private_spa: decide strictly by this definition. A PRIVATE SPA is a spa or "
+        "wellness area (sauna, whirlpool/jacuzzi, steam bath, pool, …) that guests book for "
+        "EXCLUSIVE use: only the booking person and their own companions are inside, no other "
+        "guests, for a booked time slot or stay. It counts as a private spa if the page shows "
+        "at least one of: (a) a spa/wellness area or spa suite rented by the hour or by the "
+        "slot for exclusive use ('Private Spa', 'Privatspa', 'exklusiv für Sie', 'nur für "
+        "Sie allein', 'zu mieten', 'stundenweise'); (b) a hotel that offers a SEPARATELY "
+        "bookable private spa suite or private spa room for exclusive use, in addition to its "
+        "normal spa; (c) a room, suite, chalet or holiday home with its OWN sauna, whirlpool "
+        "or spa used only by the guests staying there. It is NOT a private spa if the "
+        "wellness area is shared: a hotel spa, day spa, thermal bath, public sauna, wellness "
+        "centre or fitness club where several guests or groups use the facilities at the "
+        "same time, even if it is luxurious, adults-only, small, or 'exclusive to hotel "
+        "guests'. Massage studios, beauty salons and treatment rooms alone are not private "
+        "spas. If the page does not clearly say the spa is booked for exclusive use, answer "
+        "false. "
+        "private_spa_evidence: when is_private_spa is true, quote the exact sentence or "
+        "phrase from the website text that shows exclusive booking (in its original "
+        "language); otherwise null. "
         "private_spa_reason: one short sentence explaining is_private_spa. "
         "description_de and description_en: the description in German and in natural "
         "British English (same facts). amenities_de and amenities_en: the same amenity "
@@ -378,7 +391,10 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
     country = (result.get("country") or "").upper()
 
     return {
-        "is_private_spa": result.get("is_private_spa") is True,
+        # Only accept a "yes" that comes with a quoted proof of exclusive booking.
+        "is_private_spa": result.get("is_private_spa") is True
+        and bool(str(result.get("private_spa_evidence") or "").strip()),
+        "private_spa_evidence": result.get("private_spa_evidence"),
         "private_spa_reason": result.get("private_spa_reason"),
         "data": {
             "amenities": amenities,

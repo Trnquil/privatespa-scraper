@@ -173,6 +173,8 @@ def crawl_region(region_id: str, progress: ProgressFn = print) -> dict:
                     counts[db.NOT_PRIVATE] += 1
                     continue
                 draft = _build_draft(place, result["data"], index["slugs"])
+                if result.get("private_spa_evidence"):
+                    progress(f"  private spa: “{str(result['private_spa_evidence'])[:120]}”")
                 spa = create_spa(draft)
                 db.upsert_candidate(place, region.id, db.DRAFT_CREATED, spa_id=spa["id"])
                 counts[db.DRAFT_CREATED] += 1

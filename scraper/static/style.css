@@ -1184,3 +1184,17 @@ a.save-btn { display: inline-block; text-decoration: none; }
 .reject-btn:hover { background: #fde8e8; }
 .accept-btn:disabled, .reject-btn:disabled { opacity: 0.6; cursor: wait; }
 .review-bar.hidden, .drafts-section.hidden { display: none; }
+
+/* Crawl queue */
+.crawl-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.crawl-queue { margin-bottom: 1.5rem; padding: 1rem 1.25rem; border: 1px solid #e6efff; border-radius: 10px; background: #f6f9ff; }
+.crawl-queue-header { display: flex; align-items: center; justify-content: space-between; }
+.crawl-queue h2 { font-size: 1rem; margin: 0; }
+.crawl-queue ol { margin: 0.75rem 0 0; padding-left: 1.25rem; }
+.crawl-queue li { padding: 0.2rem 0; }
+.crawl-queue li span + * { margin-left: 0.6rem; }
+.queue-current { font-weight: 600; }
+.queue-tag { color: #1d4fb8; font-size: 0.8rem; font-weight: 400; }
+.queue-remove { text-decoration: none; color: #a32020; font-weight: 400; }
+.regions-table .check { width: 2rem; text-align: center; }
+.region-queued { background: #fff4d6; color: #8a5a00; }

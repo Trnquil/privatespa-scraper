@@ -21,6 +21,41 @@ const CANDIDATE_LABELS = {
 };
 
 let pollTimer = null;
+const selected = new Set();
+const queueSelectedBtn = document.getElementById("queue-selected-btn");
+const queueEl = document.getElementById("crawl-queue");
+const queueListEl = document.getElementById("crawl-queue-list");
+const selectAllEl = document.getElementById("select-all");
+
+function syncSelectionUi(visible) {
+  queueSelectedBtn.disabled = selected.size === 0;
+  queueSelectedBtn.textContent = selected.size ? `Queue selected (${selected.size})` : "Queue selected";
+  const ids = (visible || []).map((r) => r.id);
+  selectAllEl.checked = ids.length > 0 && ids.every((id) => selected.has(id));
+}
+
+function renderQueue(job, regions) {
+  const names = Object.fromEntries(regions.map((r) => [r.id, `${FLAGS[r.country] || ""} ${r.name}`]));
+  const items = [...(job.region ? [{ id: job.region, current: true }] : []), ...job.queue.map((id) => ({ id }))];
+  queueEl.classList.toggle("hidden", items.length === 0);
+  queueListEl.innerHTML = "";
+  for (const it of items) {
+    const li = el("li", null, it.current ? "queue-current" : "");
+    li.appendChild(el("span", names[it.id] || it.id));
+    if (it.current) {
+      li.appendChild(el("span", "crawling now…", "queue-tag"));
+    } else {
+      const rm = el("button", "✕", "link-btn queue-remove");
+      rm.title = "Remove from queue";
+      rm.addEventListener("click", async () => {
+        await api("/api/crawl/unqueue", { method: "POST", body: JSON.stringify({ region: it.id }) });
+        load();
+      });
+      li.appendChild(rm);
+    }
+    queueListEl.appendChild(li);
+  }
+}
 let countryFilter = "";
 let lastData = null;
 const FLAGS = { CH: "🇨🇭", DE: "🇩🇪", AT: "🇦🇹" };
@@ -73,11 +108,26 @@ function renderRegions(allRegions, job) {
   summaryEl.textContent = `${done} of ${regions.length} regions done · ${drafts} drafts created · next: ${
     next ? next.name : "none"
   }`;
-  crawlNextBtn.disabled = job.running || !next;
+  crawlNextBtn.disabled = !next;
+  renderQueue(job, allRegions);
+  syncSelectionUi(regions);
 
   bodyEl.innerHTML = "";
   for (const r of regions) {
     const tr = document.createElement("tr");
+    const waiting = job.queue.includes(r.id);
+    const current = job.region === r.id;
+
+    const checkTd = el("td", null, "check");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = selected.has(r.id);
+    box.addEventListener("change", () => {
+      box.checked ? selected.add(r.id) : selected.delete(r.id);
+      syncSelectionUi(regions);
+    });
+    checkTd.appendChild(box);
+    tr.appendChild(checkTd);
 
     const nameTd = el("td");
     const nameBtn = el("button", `${FLAGS[r.country] || ""} ${r.name}`, "link-btn");
@@ -87,7 +137,8 @@ function renderRegions(allRegions, job) {
     tr.appendChild(nameTd);
 
     const statusTd = el("td");
-    statusTd.appendChild(el("span", r.status, `region-status region-${r.status}`));
+    const shownStatus = current ? "running" : waiting ? "queued" : r.status;
+    statusTd.appendChild(el("span", shownStatus, `region-status region-${shownStatus}`));
     if (r.saturated) {
       const warn = el("span", " ⚠", "region-warning");
       warn.title = "Google had more than the top 20 results for at least one search phrase";
@@ -121,13 +172,17 @@ function renderRegions(allRegions, job) {
     tr.appendChild(prioTd);
 
     const actionsTd = el("td", null, "actions");
-    const crawlBtn = el("button", r.status === "done" ? "Crawl again" : "Crawl", "secondary-btn");
-    crawlBtn.disabled = job.running;
+    const crawlBtn = el(
+      "button",
+      waiting ? "Queued" : current ? "Crawling…" : r.status === "done" ? "Crawl again" : "Crawl",
+      "secondary-btn",
+    );
+    crawlBtn.disabled = waiting || current;
     crawlBtn.addEventListener("click", () => startCrawl(r.id));
     actionsTd.appendChild(crawlBtn);
     if (r.status === "done" || r.status === "failed") {
       const resetBtn = el("button", "Mark todo", "secondary-btn");
-      resetBtn.disabled = job.running;
+      resetBtn.disabled = current;
       resetBtn.addEventListener("click", async () => {
         await api(`/api/regions/${r.id}/reset`, { method: "POST" });
         load();
@@ -145,7 +200,7 @@ function renderJob(job) {
     return;
   }
   jobEl.classList.remove("hidden");
-  jobTitleEl.textContent = job.running ? "Crawl running…" : job.error ? "Crawl failed" : "Last crawl";
+  jobTitleEl.textContent = job.running ? "Crawl log" : "Last crawl";
   logEl.textContent = job.log.join("\n");
   logEl.scrollTop = logEl.scrollHeight;
 }
@@ -162,12 +217,13 @@ async function load() {
   }
 }
 
-async function startCrawl(regionId) {
+async function startCrawl(regionIds) {
   clearStatus();
   try {
+    const ids = Array.isArray(regionIds) ? regionIds : regionIds ? [regionIds] : [];
     await api("/api/crawl", {
       method: "POST",
-      body: JSON.stringify(regionId ? { region: regionId } : {}),
+      body: JSON.stringify(ids.length ? { regions: ids } : {}),
     });
     load();
   } catch (e) {
@@ -219,4 +275,19 @@ async function showCandidates(region) {
 }
 
 crawlNextBtn.addEventListener("click", () => startCrawl(null));
+queueSelectedBtn.addEventListener("click", async () => {
+  const ids = [...selected];
+  selected.clear();
+  await startCrawl(ids);
+});
+document.getElementById("clear-queue-btn").addEventListener("click", async () => {
+  await api("/api/crawl/unqueue", { method: "POST", body: "{}" });
+  load();
+});
+selectAllEl.addEventListener("change", () => {
+  if (!lastData) return;
+  const visible = countryFilter ? lastData.regions.filter((r) => r.country === countryFilter) : lastData.regions;
+  for (const r of visible) selectAllEl.checked ? selected.add(r.id) : selected.delete(r.id);
+  renderRegions(lastData.regions, lastData.job);
+});
 load();
