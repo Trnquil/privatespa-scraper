@@ -1205,3 +1205,12 @@ a.save-btn { display: inline-block; text-decoration: none; }
 .toast-error { border-left-color: #c62828; }
 .toast a, .toast span { flex: 1; color: inherit; }
 .toast-close { border: 0; background: none; cursor: pointer; color: #888; padding: 0; }
+
+/* Image reordering: drop onto a photo, quick move buttons */
+.image-card { position: relative; }
+.image-card.drop-before { box-shadow: -5px 0 0 0 #1a6b4a; }
+.image-card.drop-after { box-shadow: 5px 0 0 0 #1a6b4a; }
+.image-drag-handle { justify-content: space-between; padding: 0.25rem 0.4rem; }
+.image-moves { display: flex; gap: 0.2rem; }
+.image-moves button { border: 1px solid #d5dde6; background: #fff; border-radius: 5px; padding: 0 0.4rem; cursor: pointer; font-size: 0.8rem; line-height: 1.5; color: #334155; }
+.image-moves button:hover { background: #e8f2ec; border-color: #1a6b4a; }

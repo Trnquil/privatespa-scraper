@@ -270,60 +270,6 @@ function closeLightbox() {
   document.body.classList.remove("lightbox-open");
 }
 
-function clearImageDragOverStates() {
-  for (const zone of imageListEl.querySelectorAll(".image-drop-zone")) {
-    zone.classList.remove("active");
-  }
-}
-
-function removeDropZones() {
-  for (const zone of imageListEl.querySelectorAll(".image-drop-zone")) {
-    zone.remove();
-  }
-  imageListEl.classList.remove("is-sorting");
-}
-
-function insertDraggedCardAt(targetPosition) {
-  if (!draggedImageCard) return;
-
-  const cards = getImageCards();
-  const fromIndex = cards.indexOf(draggedImageCard);
-  if (fromIndex === -1) return;
-
-  const toPosition = Math.max(0, Math.min(targetPosition, cards.length - 1));
-  if (fromIndex === toPosition) return;
-
-  const order = [...cards];
-  order.splice(fromIndex, 1);
-  order.splice(toPosition, 0, draggedImageCard);
-
-  for (const card of order) {
-    imageListEl.appendChild(card);
-  }
-}
-
-function buildDropZones() {
-  removeDropZones();
-  if (!draggedImageCard) return;
-
-  imageListEl.classList.add("is-sorting");
-  const cards = getImageCards();
-
-  for (let index = 0; index < cards.length; index += 1) {
-    const zone = document.createElement("div");
-    zone.className = "image-drop-zone";
-    zone.dataset.index = String(index);
-    zone.setAttribute("aria-hidden", "true");
-    imageListEl.insertBefore(zone, cards[index]);
-  }
-
-  const endZone = document.createElement("div");
-  endZone.className = "image-drop-zone";
-  endZone.dataset.index = String(cards.length);
-  endZone.setAttribute("aria-hidden", "true");
-  imageListEl.appendChild(endZone);
-}
-
 function syncLightboxIndexAfterReorder() {
   if (lightboxEl.classList.contains("hidden") || !lightboxImg.src) return;
   const cards = getImageCards();
@@ -337,35 +283,76 @@ function syncLightboxIndexAfterReorder() {
   }
 }
 
+/** Drop position for a drag over a card: before it (left half) or after it (right half). */
+function dropTargetFromEvent(event) {
+  const card = event.target.closest(".image-card");
+  if (!card || card === draggedImageCard) return null;
+  const rect = card.getBoundingClientRect();
+  const after = event.clientX > rect.left + rect.width / 2;
+  const index = getImageCards().indexOf(card);
+  return { card, after, index: after ? index + 1 : index };
+}
+
+function clearDropMarkers() {
+  for (const c of imageListEl.querySelectorAll(".drop-before, .drop-after")) {
+    c.classList.remove("drop-before", "drop-after");
+  }
+}
+
+/** Move a card to a position counted in the list without the moved card. */
+function moveCardTo(card, position) {
+  const others = getImageCards().filter((c) => c !== card);
+  const target = Math.max(0, Math.min(position, others.length));
+  if (target === others.length) imageListEl.appendChild(card);
+  else imageListEl.insertBefore(card, others[target]);
+  syncLightboxIndexAfterReorder();
+}
+
+let dragScrollSpeed = 0;
+let dragScrollTimer = null;
+function dragAutoScroll(event) {
+  const edge = 120;
+  const y = event.clientY;
+  if (y < edge) dragScrollSpeed = -Math.ceil((edge - y) / 6);
+  else if (y > window.innerHeight - edge) dragScrollSpeed = Math.ceil((y - (window.innerHeight - edge)) / 6);
+  else dragScrollSpeed = 0;
+  if (dragScrollSpeed && !dragScrollTimer) {
+    dragScrollTimer = setInterval(() => {
+      if (!draggedImageCard || !dragScrollSpeed) {
+        clearInterval(dragScrollTimer);
+        dragScrollTimer = null;
+        return;
+      }
+      window.scrollBy(0, dragScrollSpeed);
+    }, 16);
+  }
+}
+
 function setupImageDragAndDrop() {
-  imageListEl.addEventListener("dragover", (event) => {
-    if (!draggedImageCard) return;
-
-    const zone = event.target.closest(".image-drop-zone");
-    if (!zone) return;
-
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    clearImageDragOverStates();
-    zone.classList.add("active");
+  // Scroll the page while dragging near the top or bottom edge.
+  document.addEventListener("dragover", (event) => {
+    if (draggedImageCard) dragAutoScroll(event);
   });
 
-  imageListEl.addEventListener("dragleave", (event) => {
-    const zone = event.target.closest(".image-drop-zone");
-    if (!zone) return;
-    if (event.relatedTarget && zone.contains(event.relatedTarget)) return;
-    zone.classList.remove("active");
+  imageListEl.addEventListener("dragover", (event) => {
+    if (!draggedImageCard) return;
+    const target = dropTargetFromEvent(event);
+    if (!target) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    clearDropMarkers();
+    target.card.classList.add(target.after ? "drop-after" : "drop-before");
   });
 
   imageListEl.addEventListener("drop", (event) => {
-    const zone = event.target.closest(".image-drop-zone");
-    if (!zone || !draggedImageCard) return;
-
+    if (!draggedImageCard) return;
+    const target = dropTargetFromEvent(event);
+    clearDropMarkers();
+    if (!target) return;
     event.preventDefault();
-    insertDraggedCardAt(Number(zone.dataset.index));
-    clearImageDragOverStates();
-    removeDropZones();
-    syncLightboxIndexAfterReorder();
+    const fromIndex = getImageCards().indexOf(draggedImageCard);
+    const position = target.index > fromIndex ? target.index - 1 : target.index;
+    moveCardTo(draggedImageCard, position);
     draggedImageCard = null;
   });
 }
@@ -422,15 +409,32 @@ function createImageCard(url) {
     card.classList.add("dragging");
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", getImageUrlFromCard(card));
-    buildDropZones();
   });
   dragHandle.addEventListener("dragend", () => {
     card.classList.remove("dragging");
-    clearImageDragOverStates();
-    removeDropZones();
-    syncLightboxIndexAfterReorder();
+    clearDropMarkers();
+    dragScrollSpeed = 0;
     draggedImageCard = null;
   });
+  // Quick moves without dragging: first (cover), one left, one right.
+  const moves = document.createElement("div");
+  moves.className = "image-moves";
+  for (const [label, title, fn] of [
+    ["⇤", "Move to first (cover photo)", () => 0],
+    ["←", "Move one left", () => getImageCards().indexOf(card) - 1],
+    ["→", "Move one right", () => getImageCards().indexOf(card) + 1],
+  ]) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = label;
+    btn.title = title;
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      moveCardTo(card, fn());
+    });
+    moves.appendChild(btn);
+  }
+  dragHandle.appendChild(moves);
 
   const previewWrap = document.createElement("div");
   previewWrap.className = "image-card-preview";
