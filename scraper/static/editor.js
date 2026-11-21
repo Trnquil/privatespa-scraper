@@ -215,12 +215,62 @@ function syncUploadImagesButton() {
   syncImageActions();
 }
 
+// Removed photos, newest last, so they can be brought back with Undo.
+const removedImages = [];
+const undoRemoveBtn = document.getElementById("undo-remove-btn") || createUndoButton();
+
+/** The page may come from an older template without the button: add it next to the photos. */
+function createUndoButton() {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = "undo-remove-btn";
+  btn.className = "secondary-btn hidden";
+  btn.title = "Bring back the last removed photo (Cmd+Z)";
+  btn.style.margin = "0 0 0.5rem";
+  imageListEl.parentNode.insertBefore(btn, imageListEl);
+  return btn;
+}
+
+function syncUndoButton() {
+  undoRemoveBtn.classList.toggle("hidden", removedImages.length === 0);
+  undoRemoveBtn.textContent = removedImages.length > 1 ? `↶ Undo remove (${removedImages.length})` : "↶ Undo remove";
+}
+
+/** Take a photo card out of the list, remembering where it was. */
+function removeImageCard(card) {
+  const index = getImageCards().indexOf(card);
+  if (index === -1) return;
+  card.remove();
+  removedImages.push({ card, index });
+  syncUndoButton();
+}
+
+function undoRemoveImage() {
+  const last = removedImages.pop();
+  if (!last) return;
+  const cards = getImageCards();
+  if (last.index >= cards.length) imageListEl.appendChild(last.card);
+  else imageListEl.insertBefore(last.card, cards[last.index]);
+  syncUndoButton();
+  syncUploadImagesButton();
+}
+
+undoRemoveBtn.addEventListener("click", undoRemoveImage);
+// Cmd/Ctrl+Z brings back the last removed photo (when not typing in a field).
+document.addEventListener("keydown", (event) => {
+  if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.key.toLowerCase() !== "z") return;
+  if (event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (!removedImages.length) return;
+  event.preventDefault();
+  undoRemoveImage();
+});
+
 function removeImageAtIndex(index) {
   const cards = getImageCards();
   const card = cards[index];
   if (!card) return;
 
-  card.remove();
+  removeImageCard(card);
 
   if (!getImageCards().length) {
     closeLightbox();
@@ -457,7 +507,7 @@ function createImageCard(url) {
   removeBtn.textContent = "×";
   removeBtn.addEventListener("click", (event) => {
     event.stopPropagation();
-    card.remove();
+    removeImageCard(card);
     syncUploadImagesButton();
   });
 
@@ -490,6 +540,9 @@ function createImageCard(url) {
 
 function renderImages(urls) {
   imageListEl.innerHTML = "";
+  // A fresh list (new spa, or photos replaced after upload): old removals no longer apply.
+  removedImages.length = 0;
+  syncUndoButton();
   for (const url of urls || []) {
     imageListEl.appendChild(createImageCard(url));
   }
