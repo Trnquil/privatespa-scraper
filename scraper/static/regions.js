@@ -58,7 +58,7 @@ function renderQueue(job, regions) {
 }
 let countryFilter = "";
 let lastData = null;
-const FLAGS = { CH: "🇨🇭", DE: "🇩🇪", AT: "🇦🇹" };
+const FLAGS = { CH: "🇨🇭", DE: "🇩🇪", AT: "🇦🇹", IT: "🇮🇹", FR: "🇫🇷" };
 
 document.querySelectorAll("#country-filter button").forEach((btn) => {
   btn.addEventListener("click", () => {
