@@ -29,6 +29,10 @@ CONTACT_LINK_RE = re.compile(
 JUNK_DOMAINS = (
     "example.", "sentry", "wixpress", "domain.", "email.", "yourdomain", "test.", "beispiel.",
     "godaddy", "jimdo", "squarespace", "wordpress", "w3.org", "schema.org", "googlemail.com.invalid",
+    # booking platforms, web agencies and authorities that show up in footers / legal notices
+    "airbnb.", "booking.com", "expedia.", "tripadvisor.", "abritel.", "vrbo.", "gites-de-france",
+    "linkeo.", "econetsolutions.", "solocal.", "pagesjaunes.", "1and1.", "ionos.", "ovh.", "strato.",
+    ".gouv.fr", ".gov.", ".sachsen.de", ".bayern.de", ".admin.ch", "cnil.fr", "datenschutz",
 )
 JUNK_LOCAL = ("noreply", "no-reply", "donotreply", "webmaster", "postmaster", "abuse", "privacy",
               "datenschutz", "dsb", "gdpr", "rgpd", "dpo", "jobs", "career", "karriere", "bewerbung")
@@ -65,7 +69,7 @@ def _clean(email: str) -> str | None:
     local, _, domain = e.partition("@")
     if e.endswith(IMAGE_EXT) or any(j in domain for j in JUNK_DOMAINS):
         return None
-    if any(local.startswith(j) for j in JUNK_LOCAL) or len(local) > 40:
+    if any(local.startswith(j) for j in JUNK_LOCAL) or "dsb" in local or local in ("terms", "legal") or len(local) > 40:
         return None
     return e
 
