@@ -490,6 +490,15 @@ def scrape_url(url: str) -> dict:
     spa_info = extract_spa_info_with_openai(text, url, image_urls)
     spa_info = apply_geocoding(spa_info)
 
+    # Contact email straight from the website (mailto links, contact/legal pages).
+    if not (spa_info.get("data") or {}).get("contact"):
+        try:
+            from contact_email import find_contact_email
+
+            spa_info.setdefault("data", {})["contact"] = find_contact_email(url, html)
+        except Exception:  # noqa: BLE001 - a missing email must never fail the scrape
+            pass
+
     return {
         **spa_info,
         "source_url": url,
