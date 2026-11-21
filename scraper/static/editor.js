@@ -585,14 +585,16 @@ function syncReviewBar() {
   const isDraft = editorMode === "firestore" && Boolean(currentSpaId) && currentStatus === "draft";
   reviewBarEl.classList.toggle("hidden", !isDraft);
   if (!isDraft) return;
-  const drafts = allSpas.filter((spa) => spa.status === "draft");
+  const publishing = new Set(window.publishToasts?.pendingSpaIds() || []);
+  const drafts = allSpas.filter((spa) => spa.status === "draft" && (!publishing.has(spa.id) || spa.id === currentSpaId));
   const index = drafts.findIndex((spa) => spa.id === currentSpaId);
   reviewProgressEl.textContent = index >= 0 ? `${index + 1} of ${drafts.length} to review` : "";
 }
 
 /** After accepting or rejecting, continue with the next draft, or go home when done. */
 function goToNextDraft() {
-  const drafts = allSpas.filter((spa) => spa.status === "draft");
+  const publishing = new Set(window.publishToasts?.pendingSpaIds() || []);
+  const drafts = allSpas.filter((spa) => spa.status === "draft" && (!publishing.has(spa.id) || spa.id === currentSpaId));
   const index = drafts.findIndex((spa) => spa.id === currentSpaId);
   const next = drafts[index + 1] || drafts.find((spa) => spa.id !== currentSpaId);
   window.location.href = next ? `/spa/${encodeURIComponent(next.id)}` : "/?reviewed=1";
@@ -606,23 +608,17 @@ function setReviewBusy(busy) {
 async function acceptDraft() {
   if (!currentSpaId) return;
   setReviewBusy(true);
-  setStatus("Saving, copying images to Firebase Storage and publishing…", "loading");
   try {
-    const saveResponse = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}`, {
-      method: "PUT",
+    // Saving and publishing (copying images, thumbnail) run in the background on the
+    // server; a notification top right reports when it went through.
+    const response = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}/publish-async`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildSpaPayload()),
     });
-    const saved = await saveResponse.json();
-    if (!saveResponse.ok) throw new Error(saved.error || "Failed to save spa");
-    const response = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}/publish`, {
-      method: "POST",
-    });
     const result = await response.json();
-    if (!response.ok) {
-      const details = (result.errors || []).map((e) => `${e.source_url}: ${e.error}`).join("\n");
-      throw new Error((result.error || "Failed to publish") + (details ? `\n${details}` : ""));
-    }
+    if (!response.ok) throw new Error(result.error || "Failed to publish");
+    window.publishToasts.track(result);
     goToNextDraft();
   } catch (error) {
     setStatus(error.message, "error");

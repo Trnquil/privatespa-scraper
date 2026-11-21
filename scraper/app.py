@@ -195,6 +195,58 @@ def api_publish_spa(spa_id):
     return jsonify(updated)
 
 
+# Background publishing, so the reviewer can move on to the next draft at once.
+_publish_jobs: dict[str, dict] = {}
+_publish_lock = threading.Lock()
+
+
+def _publish_in_background(job_id: str, spa_id: str, data: dict | None) -> None:
+    job = _publish_jobs[job_id]
+    try:
+        if data:
+            update_spa(spa_id, data)
+        with app.test_request_context():
+            response = api_publish_spa(spa_id)
+        if isinstance(response, tuple):
+            body, _status = response
+            payload = body.get_json() or {}
+            details = "; ".join(f"{e.get('source_url')}: {e.get('error')}" for e in payload.get("errors") or [])
+            raise RuntimeError((payload.get("error") or "Publishing failed") + (f" ({details})" if details else ""))
+        job["state"] = "done"
+    except Exception as e:  # noqa: BLE001 - reported to the reviewer
+        job["state"] = "failed"
+        job["error"] = str(e)
+    job["finished"] = datetime.now().isoformat(timespec="seconds")
+
+
+@app.post("/api/spas/<spa_id>/publish-async")
+def api_publish_async(spa_id):
+    """Save the draft's edits and publish it in the background; returns at once with a job id."""
+    body = request.get_json(silent=True) or {}
+    data = body.get("data") if isinstance(body.get("data"), dict) else None
+    check = data or (get_spa(spa_id) or {}).get("data")
+    if check is None:
+        return jsonify({"error": "Spa not found"}), 404
+    if not (check.get("name") and check.get("slug")):
+        return jsonify({"error": "Name and slug are required before publishing"}), 400
+    if not check.get("images"):
+        return jsonify({"error": "Add at least one image before publishing"}), 400
+    job_id = f"{spa_id}-{int(datetime.now().timestamp() * 1000)}"
+    with _publish_lock:
+        _publish_jobs[job_id] = {"id": job_id, "spa_id": spa_id, "name": check.get("name"), "state": "running", "error": None}
+        # keep the store small
+        for old in list(_publish_jobs)[:-200]:
+            _publish_jobs.pop(old, None)
+    threading.Thread(target=_publish_in_background, args=(job_id, spa_id, data), daemon=True).start()
+    return jsonify(_publish_jobs[job_id]), 202
+
+
+@app.get("/api/publish-jobs")
+def api_publish_jobs():
+    ids = [i for i in (request.args.get("ids") or "").split(",") if i]
+    return jsonify({"jobs": [_publish_jobs[i] for i in ids if i in _publish_jobs]})
+
+
 @app.post("/api/spas/<spa_id>/reject")
 def api_reject_draft(spa_id):
     """Reject a draft: delete it (and any uploaded images). Only drafts can be rejected."""
