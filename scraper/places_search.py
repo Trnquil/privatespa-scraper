@@ -29,13 +29,25 @@ FIELD_MASK = ",".join(
     ]
 )
 MAX_PAGES = 1  # top 20 per phrase
-DEFAULT_QUERIES = "private spa, privatspa, wellness suite, romantik zimmer whirlpool"
+
+# Search phrases per country, in the words people there use.
+COUNTRY_QUERIES: dict[str, list[str]] = {
+    "CH": ["private spa", "privatspa", "wellness suite", "romantik zimmer whirlpool"],
+    "DE": ["private spa", "privatspa", "wellness suite", "romantik zimmer whirlpool"],
+    "AT": ["private spa", "privatspa", "wellness suite", "romantik zimmer whirlpool"],
+    "IT": ["spa privata", "private spa", "suite con spa privata", "jacuzzi privata"],
+    "FR": ["spa privatif", "jacuzzi privatif", "love room spa", "suite avec spa privatif"],
+}
+# Language Google answers in (names, addresses): the country's own language.
+COUNTRY_LANGUAGE = {"CH": "de", "DE": "de", "AT": "de", "IT": "it", "FR": "fr"}
 
 
-def search_queries() -> list[str]:
-    """Search phrases, configurable via CRAWL_QUERIES (comma separated)."""
-    raw = os.environ.get("CRAWL_QUERIES", DEFAULT_QUERIES)
-    return [q.strip() for q in raw.split(",") if q.strip()]
+def search_queries(country: str = "CH") -> list[str]:
+    """Search phrases for a country; CRAWL_QUERIES (comma separated) overrides them for all."""
+    raw = os.environ.get("CRAWL_QUERIES")
+    if raw:
+        return [q.strip() for q in raw.split(",") if q.strip()]
+    return COUNTRY_QUERIES.get(country, COUNTRY_QUERIES["CH"])
 
 
 def _component(place: dict, type_name: str, text: str = "shortText") -> str | None:
@@ -79,7 +91,7 @@ def search_region(region: Region, query: str) -> tuple[list[dict], bool]:
     body: dict = {
         "textQuery": query,
         "pageSize": 20,
-        "languageCode": "de",
+        "languageCode": COUNTRY_LANGUAGE.get(region.country, "de"),
         "regionCode": region.country,
         "locationRestriction": {
             "rectangle": {

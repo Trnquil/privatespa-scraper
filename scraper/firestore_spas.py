@@ -44,7 +44,7 @@ DEFAULT_SPA_VALUES = {
 COMPLETENESS_EXCLUDED = frozenset(
     {"premium", "thumbnail", "owner", "status", "google_place_id", "source", "amenities_en"}
 )
-COUNTRIES = ("CH", "DE", "AT")
+COUNTRIES = ("CH", "DE", "AT", "IT", "FR")
 
 
 def get_db():

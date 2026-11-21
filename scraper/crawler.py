@@ -2,8 +2,8 @@
 """Crawl Swiss cantons and German/Austrian states for private spas; save new ones as drafts.
 
 For one region:
-  1. Search Google Places for each phrase in CRAWL_QUERIES (default: "private spa",
-     "privatspa", "wellness suite", "romantik zimmer whirlpool"), top 20 each.
+  1. Search Google Places with the country's phrases (places_search.COUNTRY_QUERIES,
+     e.g. "spa privatif" in France), top 20 results each.
   2. Skip places already seen, already in Firestore (same Google place or same
      website), outside CH/DE/AT, permanently closed, or without a website.
   3. Scrape each remaining website with the existing scraper (OpenAI extraction).
@@ -97,7 +97,7 @@ def crawl_region(region_id: str, progress: ProgressFn = print) -> dict:
         # 1. Discover
         places: dict[str, dict] = {}
         saturated = False
-        for query in search_queries():
+        for query in search_queries(region.country):
             found, capped = search_region(region, query)
             saturated = saturated or capped
             for p in found:

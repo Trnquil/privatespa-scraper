@@ -307,9 +307,15 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
 
     system_prompt = (
         "You extract spa or wellness venue information from website text. "
-        "The website may be written in German, English or another language; read it in any "
-        "language, but always write description_de and amenities_de in German and "
-        "description_en and amenities_en in English. "
+        "The website may be written in German, English, French, Italian or another language. "
+        "Read it in its own language, then always write description_de and amenities_de in "
+        "natural German and description_en and amenities_en in natural English: translate "
+        "faithfully, keep the facts, do not add anything, and keep proper names, brand names "
+        "and place names as they are (e.g. 'Le Spa des Alpes', 'Suite Romantica'). Translate "
+        "local terms correctly: French 'spa privatif' / Italian 'spa privata' = Private Spa "
+        "(German) / private spa (English); 'jacuzzi privatif' = privater Whirlpool / private "
+        "hot tub; 'hammam' = Hammam; 'nuitée' / 'pernottamento' = Übernachtung / overnight "
+        "stay. "
         "Return ONLY valid JSON with exactly these keys: "
         "name, description, amenities, location, canton, coordinates, price_from, "
         "is_private_spa, private_spa_evidence, private_spa_reason, description_de, description_en, "
@@ -323,21 +329,24 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
         "(e.g. 'Hertensteinstrasse 42, 6353 Weggis, Schweiz'). "
         "If no street address exists, use the most specific place name available. "
         "Do not invent address parts. null if unclear. "
-        "canton: the region the venue is in, if identifiable: the Swiss canton, or the German or "
-        "Austrian federal state (Bundesland), using its German name (e.g. Zürich, Bayern, Tirol); "
-        "otherwise null. "
+        "canton: the region the venue is in, if identifiable: the Swiss canton, the German or "
+        "Austrian federal state, the Italian region or the French région, using its German "
+        "name (e.g. Zürich, Bayern, Tirol, Toskana, Okzitanien); otherwise null. "
         "coordinates: [latitude, longitude] ONLY if explicitly present in the text "
         "(e.g. geo meta tags or map data), otherwise null. "
         "price_from: lowest starting price as a number, if explicitly mentioned "
-        "on the page, in the page's currency (CHF in Switzerland, EUR in Germany and Austria; "
-        "e.g. 'ab CHF 150' -> 150, 'ab 180 €' -> 180), otherwise null. "
+        "on the page, in the page's currency (CHF in Switzerland, EUR in Germany, Austria, "
+        "Italy and France; e.g. 'ab CHF 150' -> 150, 'ab 180 €' -> 180, 'à partir de 89 €' -> 89, "
+        "'da 120 €' -> 120), otherwise null. "
         "is_private_spa: decide strictly by this definition. A PRIVATE SPA is a spa or "
         "wellness area (sauna, whirlpool/jacuzzi, steam bath, pool, …) that guests book for "
         "EXCLUSIVE use: only the booking person and their own companions are inside, no other "
         "guests, for a booked time slot or stay. It counts as a private spa if the page shows "
         "at least one of: (a) a spa/wellness area or spa suite rented by the hour or by the "
         "slot for exclusive use ('Private Spa', 'Privatspa', 'exklusiv für Sie', 'nur für "
-        "Sie allein', 'zu mieten', 'stundenweise'); (b) a hotel that offers a SEPARATELY "
+        "Sie allein', 'zu mieten', 'stundenweise'; French: 'spa privatif', 'spa privé', "
+        "'privatisé', 'privatisable', 'rien que pour vous', 'à l'heure', 'location'; Italian: "
+        "'spa privata', 'in esclusiva', 'uso esclusivo', 'solo per voi', 'a ore', 'noleggio'); (b) a hotel that offers a SEPARATELY "
         "bookable private spa suite or private spa room for exclusive use, in addition to its "
         "normal spa; (c) a room, suite, chalet or holiday home with its OWN sauna, whirlpool "
         "or spa used only by the guests staying there. It is NOT a private spa if the "
@@ -350,11 +359,11 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
         "private_spa_evidence: when is_private_spa is true, quote the exact sentence or "
         "phrase from the website text that shows exclusive booking (in its original "
         "language); otherwise null. "
-        "private_spa_reason: one short sentence explaining is_private_spa. "
+        "private_spa_reason: one short sentence in English explaining is_private_spa. "
         "description_de and description_en: the description in German and in natural "
         "British English (same facts). amenities_de and amenities_en: the same amenity "
         "list in German and in English, in the same order; keep brand and place names. "
-        "country: ISO code of the venue's country (CH, DE or AT), or null. "
+        "country: ISO code of the venue's country (CH, DE, AT, IT or FR), or null. "
         "Do NOT invent amenities, prices, locations, coordinates, or services. "
         "Return null for description if there is not enough information."
     )
@@ -399,7 +408,7 @@ def extract_spa_info_with_openai(text: str, url: str, image_urls: list[str]) -> 
         "data": {
             "amenities": amenities,
             "amenities_en": amenities_en,
-            "country": country if country in ("CH", "DE", "AT") else None,
+            "country": country if country in ("CH", "DE", "AT", "IT", "FR") else None,
             "description_en": result.get("description_en"),
             "canton": result.get("canton"),
             "coordinates": _normalize_coordinates(result.get("coordinates")),
@@ -492,7 +501,7 @@ def scrape_url(url: str) -> dict:
 SPA_LINK_PATTERNS = [
     (re.compile(r"priva\w*[\s_-]*spa|spa[\s_-]*priv", re.I), 3),
     (re.compile(r"spa[\s_-]*suite|wellness[\s_-]*suite|day[\s_-]*spa[\s_-]*suite", re.I), 2),
-    (re.compile(r"\bspa\b|wellness|sauna", re.I), 1),
+    (re.compile(r"\bspa\b|wellness|sauna|jacuzzi|bien-?etre|bien-?être|benessere|hammam", re.I), 1),
 ]
 
 
