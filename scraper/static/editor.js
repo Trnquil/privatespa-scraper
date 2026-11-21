@@ -630,9 +630,18 @@ async function rejectDraft() {
   if (!currentSpaId) return;
   setReviewBusy(true);
   try {
-    const response = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}/reject-async`, {
+    let response = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}/reject-async`, {
       method: "POST",
     });
+    if (response.status === 404 && !(response.headers.get("content-type") || "").includes("json")) {
+      // Portal not restarted yet: reject the old (waiting) way.
+      setStatus("Rejecting…", "loading");
+      response = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}/reject`, { method: "POST" });
+      const old = await response.json();
+      if (!response.ok) throw new Error(old.error || "Failed to reject");
+      goToNextDraft();
+      return;
+    }
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Failed to reject");
     window.publishToasts.track(result);
