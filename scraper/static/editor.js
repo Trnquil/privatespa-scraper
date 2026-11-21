@@ -629,13 +629,13 @@ async function acceptDraft() {
 async function rejectDraft() {
   if (!currentSpaId) return;
   setReviewBusy(true);
-  setStatus("Rejecting…", "loading");
   try {
-    const response = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}/reject`, {
+    const response = await fetch(`/api/spas/${encodeURIComponent(currentSpaId)}/reject-async`, {
       method: "POST",
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Failed to reject");
+    window.publishToasts.track(result);
     goToNextDraft();
   } catch (error) {
     setStatus(error.message, "error");

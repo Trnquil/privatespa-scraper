@@ -233,11 +233,42 @@ def api_publish_async(spa_id):
         return jsonify({"error": "Add at least one image before publishing"}), 400
     job_id = f"{spa_id}-{int(datetime.now().timestamp() * 1000)}"
     with _publish_lock:
-        _publish_jobs[job_id] = {"id": job_id, "spa_id": spa_id, "name": check.get("name"), "state": "running", "error": None}
+        _publish_jobs[job_id] = {"id": job_id, "spa_id": spa_id, "name": check.get("name"), "kind": "publish", "state": "running", "error": None}
         # keep the store small
         for old in list(_publish_jobs)[:-200]:
             _publish_jobs.pop(old, None)
     threading.Thread(target=_publish_in_background, args=(job_id, spa_id, data), daemon=True).start()
+    return jsonify(_publish_jobs[job_id]), 202
+
+
+def _reject_in_background(job_id: str, spa_id: str) -> None:
+    job = _publish_jobs[job_id]
+    try:
+        with app.test_request_context():
+            response = api_reject_draft(spa_id)
+        if isinstance(response, tuple):
+            body, _status = response
+            raise RuntimeError((body.get_json() or {}).get("error") or "Rejecting failed")
+        job["state"] = "done"
+    except Exception as e:  # noqa: BLE001 - reported to the reviewer
+        job["state"] = "failed"
+        job["error"] = str(e)
+    job["finished"] = datetime.now().isoformat(timespec="seconds")
+
+
+@app.post("/api/spas/<spa_id>/reject-async")
+def api_reject_async(spa_id):
+    """Reject a draft in the background; returns at once with a job id."""
+    spa = get_spa(spa_id)
+    if not spa:
+        return jsonify({"error": "Spa not found"}), 404
+    if spa["data"].get("status") != DRAFT:
+        return jsonify({"error": "Only drafts can be rejected; use Delete listing for published spas"}), 400
+    job_id = f"{spa_id}-{int(datetime.now().timestamp() * 1000)}"
+    with _publish_lock:
+        _publish_jobs[job_id] = {"id": job_id, "spa_id": spa_id, "name": spa["data"].get("name"),
+                                 "kind": "reject", "state": "running", "error": None}
+    threading.Thread(target=_reject_in_background, args=(job_id, spa_id), daemon=True).start()
     return jsonify(_publish_jobs[job_id]), 202
 
 
