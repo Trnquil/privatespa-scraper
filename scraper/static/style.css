@@ -1217,3 +1217,5 @@ a.save-btn { display: inline-block; text-decoration: none; }
 
 .images-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 #undo-remove-btn { padding: 0.3rem 0.75rem; font-size: 0.85rem; }
+
+.kbd-hint { display: inline-block; margin-left: 0.35rem; padding: 0 0.35rem; border: 1px solid currentColor; border-radius: 4px; font: 600 0.7rem/1.4 system-ui, sans-serif; opacity: 0.6; }

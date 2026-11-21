@@ -1125,6 +1125,23 @@ async function initEditor() {
 saveSpaBtn.addEventListener("click", saveSpa);
 publishBtn.addEventListener("click", togglePublish);
 acceptBtn.addEventListener("click", acceptDraft);
+// Review shortcuts: E = accept & publish, Q = reject (not while typing in a field).
+document.addEventListener("keydown", (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
+  if (event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (reviewBarEl.classList.contains("hidden")) return;
+  const key = event.key.toLowerCase();
+  const btn = key === "e" ? acceptBtn : key === "q" ? rejectBtn : null;
+  if (!btn || btn.disabled) return;
+  event.preventDefault();
+  btn.click();
+});
+const shortcutHint = (btn, key) => {
+  btn.title = `Shortcut: ${key}`;
+  btn.insertAdjacentHTML("beforeend", ` <kbd class="kbd-hint">${key}</kbd>`);
+};
+shortcutHint(acceptBtn, "E");
+shortcutHint(rejectBtn, "Q");
 rejectBtn.addEventListener("click", rejectDraft);
 rescrapeMissingBtn.addEventListener("click", rescrapeMissingFields);
 deleteSpaBtn.addEventListener("click", openDeleteModal);
